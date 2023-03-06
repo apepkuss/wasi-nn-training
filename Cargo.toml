@@ -1,2 +1,2 @@
 [workspace]
-members = ["run-tch"]
+members = ["run-tch", "cifar"]
