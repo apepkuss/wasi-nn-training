@@ -1,3 +1,0 @@
-[submodule "wasmedge_plugin_rust_sdk"]
-	path = wasmedge_plugin_rust_sdk
-	url = git@github.com:second-state/wasmedge_plugin_rust_sdk.git
