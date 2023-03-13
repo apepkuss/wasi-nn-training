@@ -49,7 +49,7 @@ fn learning_rate(epoch: i64) -> f64 {
 
 pub fn main() -> Result<()> {
     let m = tch::vision::cifar::load_dir("data")?;
-    let vs = nn::VarStore::new(Device::cuda_if_available());
+    let vs = nn::VarStore::new(Device::Cpu);
     let net = fast_resnet(&vs.root());
     let mut opt = nn::Sgd {
         momentum: 0.9,
@@ -58,7 +58,7 @@ pub fn main() -> Result<()> {
         nesterov: true,
     }
     .build(&vs, 0.)?;
-    for epoch in 1..150 {
+    for epoch in 1..2 {
         opt.set_lr(learning_rate(epoch));
         for (bimages, blabels) in m.train_iter(64).shuffle().to_device(vs.device()) {
             let bimages = tch::vision::dataset::augmentation(&bimages, true, 4, 8);

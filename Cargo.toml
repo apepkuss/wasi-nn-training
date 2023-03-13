@@ -1,2 +1,5 @@
 [workspace]
 members = ["run-tch", "cifar"]
+
+[workspace.dependencies]
+tch = "0.10.3"
