@@ -1,5 +1,5 @@
 [workspace]
-members = ["run-tch", "cifar"]
+members = ["run-tch", "cifar", "tensor-conversion"]
 
 [workspace.dependencies]
 tch = "0.10.3"
