@@ -1,5 +1,5 @@
 use mnist::*;
-use ndarray::{array, Array2, Array3};
+use ndarray::{array, Array2, Array3, ArrayBase};
 use std::result::Result;
 use std::{error::Error, ops::Div};
 use tch::{kind, no_grad, Kind, Tensor};
@@ -35,8 +35,21 @@ pub fn image_to_tensor(data: Vec<u8>, dim1: usize, dim2: usize, dim3: usize) -> 
     output_data
 }
 
+fn to_byte_slice<'a>(floats: &'a [f32]) -> &'a [u8] {
+    unsafe { std::slice::from_raw_parts(floats.as_ptr() as *const _, floats.len() * 4) }
+}
+
+fn to_f32_slice(bytes: &[u8]) -> Vec<f32> {
+    let mut floats = vec![];
+    let len = bytes.len() / 4;
+    for i in (0..len).step_by(4) {
+        floats.push(f32::from_le_bytes(bytes[i..i + 4].try_into().unwrap()));
+    }
+    floats
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("test: converting ndarray -> tch::Tensor -> ndarray");
+    println!("===== test: converting ndarray -> tch::Tensor -> ndarray");
     {
         let nd_array = array![[1., 2., 3.], [2., 3., 1.], [3., 1., 2.]];
         println!("original nd_array:");
@@ -54,7 +67,45 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("{:?}", &nd_array);
     }
 
-    println!("test: converting image -> ndarray -> tch::Tensor");
+    println!("\n===== test: converting ndarray -> bytes -> tch::Tensor -> bytes -> ndarray");
+    {
+        let nd_array: ndarray::Array<f32, _> = array![[1., 2., 3.], [2., 3., 1.], [3., 1., 2.]];
+        println!("original nd_array:");
+        println!("{:?}\n", &nd_array);
+
+        println!("converting ndarry -> bytes");
+        let floats = nd_array
+            .as_slice()
+            .expect("failed to convert ndarray to slice");
+        let bytes = to_byte_slice(floats);
+        println!("size of bytes: {}", bytes.len());
+
+        println!("converting bytes -> tch::Tensor");
+        let tensor = Tensor::of_data_size(bytes, &[3, 3], tch::Kind::Float);
+        println!("{:?}\n", tensor.print());
+
+        let tensor = tensor.div(2.);
+        println!("after divided by 2:");
+        println!("{:?}\n", tensor.print());
+
+        println!("converting tensor -> bytes");
+        let data = tensor.data_ptr() as *const u8;
+        let mut len = 1;
+        for n in tensor.size() {
+            len *= n;
+        }
+        let bytes =
+            unsafe { std::slice::from_raw_parts(data, len as usize * std::mem::size_of::<f32>()) };
+        println!("size of bytes: {}", bytes.len());
+
+        println!("converting bytes -> ndarray");
+        let floats = to_f32_slice(bytes);
+        let nd_array: ndarray::Array<f32, _> = ndarray::Array::from_shape_vec((3, 3), floats)?;
+        println!("nd_array returned:");
+        println!("{:?}\n", &nd_array);
+    }
+
+    println!("\n===== test: converting image -> ndarray -> tch::Tensor");
     {
         // Deconstruct the returned Mnist struct.
         let Mnist { trn_img, .. } = MnistBuilder::new()
