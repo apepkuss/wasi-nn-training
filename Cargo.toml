@@ -1,5 +1,6 @@
 [workspace]
-members = ["run-tch", "cifar", "tensor-conversion"]
+members = ["run-tch", "cifar", "tensor-conversion", "tch-backend-plugin", "test-tch-backend"]
 
 [workspace.dependencies]
 tch = "0.10.3"
+wasmedge-sdk = {path = "/root/workspace/WasmEdge/bindings/rust/wasmedge-sdk", features = ["ffi"]}
