@@ -5,7 +5,13 @@ mod plugin {
     #[link(wasm_import_module = "naive-math")]
     extern "C" {
         pub fn add(x: i32, y: i32) -> i32;
-        pub fn set_input_tensor(x: i32, y: i32);
+        pub fn set_input_tensor(
+            data_offset: i32,
+            data_size: i32,
+            dims_offset: i32,
+            dims_size: i32,
+            ty: i32,
+        );
     }
 }
 
@@ -44,24 +50,31 @@ fn main() {
 
     println!("size of Array: {}", std::mem::size_of::<protocol::Array>());
 
-    let data1 = [1u8, 2, 3, 4, 5];
+    let data1 = [1u8, 2, 3, 2, 3, 1, 3, 1, 2];
     let arr1 = protocol::Array {
         data: &data1 as *const _,
         size: data1.len() as i32,
     };
-    let data2 = [6u8, 7, 8];
-    let arr2 = protocol::Array {
-        data: &data2 as *const _,
-        size: data2.len() as i32,
-    };
+    // let data2 = [6u8, 7, 8];
+    // let arr2 = protocol::Array {
+    //     data: &data2 as *const _,
+    //     size: data2.len() as i32,
+    // };
 
-    let arrs = [arr1, arr2];
+    let arrs = [arr1];
     let ptr = &arrs as *const _ as usize as i32;
+
+    let dims1 = [3u8, 3];
+    let dims1_ptr = &dims1 as *const _ as usize as i32;
+    let dims1_size = dims1.len();
 
     unsafe {
         plugin::set_input_tensor(
             ptr,
             (arrs.len() * std::mem::size_of::<protocol::Array>()) as i32,
+            dims1_ptr,
+            dims1_size as i32,
+            2,
         );
     }
 }
@@ -105,7 +118,7 @@ pub fn f32_vec_to_bytes(data: Vec<f32>) -> Vec<u8> {
 mod protocol {
 
     #[repr(C)]
-    #[derive(Copy, Clone, Debug)]
+    #[derive(Clone, Debug)]
     pub struct Array {
         pub data: *const u8, // 4 bytes
         pub size: i32,       // 4 bytes
@@ -114,9 +127,9 @@ mod protocol {
     #[repr(C)]
     #[derive(Copy, Clone, Debug)]
     pub struct Tensor<'a> {
-        pub dimensions: TensorDimensions<'a>,
-        pub ty: TensorType,
-        pub data: TensorData<'a>,
+        pub dimensions: TensorDimensions<'a>, // 8 bytes
+        pub ty: TensorType,                   // 1 bytes
+        pub data: TensorData<'a>,             // 8 bytes
     }
 
     pub type TensorData<'a> = &'a [u8];

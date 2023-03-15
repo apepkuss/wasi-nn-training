@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use tch::Tensor;
 use wasmedge_sdk::{
     error::HostFuncError,
@@ -44,48 +46,52 @@ fn set_input_tensor(
 
     let memory = caller.memory(0).expect("failed to get memory at idex 0");
 
-    if input.len() != 2 {
+    if input.len() != 5 {
         return Err(HostFuncError::User(1));
     }
 
-    let a = if input[0].ty() == ValType::I32 {
+    let dt_offset = if input[0].ty() == ValType::I32 {
         input[0].to_i32()
     } else {
         return Err(HostFuncError::User(2));
     };
-    println!("a: {a}");
+    println!("dt_offset: {dt_offset}");
 
-    let b = if input[1].ty() == ValType::I32 {
+    let dt_size = if input[1].ty() == ValType::I32 {
         input[1].to_i32()
     } else {
         return Err(HostFuncError::User(2));
     };
-    println!("b: {b}");
+    println!("dt_size: {dt_size}");
 
-    // println!(
-    //     "plugin: size of Array: {}",
-    //     std::mem::size_of::<protocol::Array>()
-    // );
-    // println!(
-    //     "plugin: size of *const u8: {}",
-    //     std::mem::size_of::<*const u8>()
-    // );
-    // println!("plugin: size of u8: {}", std::mem::size_of::<u8>());
+    let dm_offset = if input[2].ty() == ValType::I32 {
+        input[2].to_i32()
+    } else {
+        return Err(HostFuncError::User(3));
+    };
+    println!("dm_offset: {dm_offset}");
 
-    // println!("plugin: offset: {}", a);
-    // let ptr = a as *const u8;
-    // println!("plugin: ptr: {:p}", ptr);
+    let dm_size = if input[3].ty() == ValType::I32 {
+        input[3].to_i32()
+    } else {
+        return Err(HostFuncError::User(4));
+    };
+    println!("dm_size: {dm_size}");
 
-    // println!("plugin: len: {}", b);
+    let ty = if input[4].ty() == ValType::I32 {
+        input[4].to_i32()
+    } else {
+        return Err(HostFuncError::User(5));
+    };
+    println!("ty: {ty}");
+
+    // ======
 
     let data = memory
-        .data_pointer(a as u32, b as u32)
+        .data_pointer(dt_offset as u32, dt_size as u32)
         .expect("failed to get data from linear memory");
 
-    // let slice = unsafe { std::slice::from_raw_parts(data, b as usize) };
-    // println!("first number: {:?}", slice);
-
-    let slice = unsafe { std::slice::from_raw_parts(data, 16) };
+    let slice = unsafe { std::slice::from_raw_parts(data, 8) };
     println!("slice1: {:?}", slice);
 
     // extract the first (offset, size) from the linear memory
@@ -97,6 +103,17 @@ fn set_input_tensor(
         .read(offset1 as u32, size1 as u32)
         .expect("failed to read numbers");
     println!("num1: {:?}", num1);
+
+    let dims = memory
+        .data_pointer(dm_offset as u32, dm_size as u32)
+        .expect("failed to get dims from linear memory");
+    let dims = unsafe { std::slice::from_raw_parts(dims, 2) };
+    let dims: Vec<i64> = dims.iter().map(|&x| x as i64).collect();
+    println!("dims: {:?}", dims);
+
+    let tensor = Tensor::of_slice(num1.as_slice());
+    let tensor = tensor.reshape(dims.as_slice());
+    println!("tensor: {:?}", tensor);
 
     Ok(vec![])
 }
@@ -110,7 +127,7 @@ unsafe extern "C" fn create_test_module(
         // add a function
         .with_func::<(i32, i32), i32>("add", real_add)
         .expect("failed to create host function: add")
-        .with_func::<(i32, i32), ()>("set_input_tensor", set_input_tensor)
+        .with_func::<(i32, i32, i32, i32, i32), ()>("set_input_tensor", set_input_tensor)
         .expect("failed to create host function: set_input_tensor")
         .build(module_name)
         .expect("failed to create import object");
