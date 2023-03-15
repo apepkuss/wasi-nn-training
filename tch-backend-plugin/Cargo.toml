@@ -9,3 +9,5 @@ crate-type = ["cdylib"]
 [dependencies]
 wasmedge-sdk = { workspace = true }
 tch = {workspace = true}
+byteorder = "1.4.3"
+anyhow = "1"
