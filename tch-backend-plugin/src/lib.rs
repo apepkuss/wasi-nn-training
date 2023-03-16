@@ -123,7 +123,7 @@ fn set_input_tensor(
 
 #[host_function]
 fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
-    println!("This is `set_input_tensor` host function.");
+    println!("\n*** Welcom! This is `train` host function. ***\n");
 
     let memory = caller.memory(0).expect("failed to get memory at idex 0");
 
@@ -131,6 +131,8 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
 
     // extract train_images
     let train_images: Tensor = {
+        println!("*** extracting data for train_images");
+
         let offset = if input[0].ty() == ValType::I32 {
             input[0].to_i32()
         } else {
@@ -157,11 +159,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let data = memory
             .read(offset_data as u32, size_data as u32)
             .expect("plugin: train_images: failed to extract tensor data");
-        println!(
-            "plugin: train_images: data: {:?}, len: {}",
-            data,
-            data.len()
-        );
+        println!("plugin: train_images: len: {}", data.len());
 
         // extract tensor's dimensions
         let offset_dims = i32::from_le_bytes(slice[8..12].try_into().unwrap());
@@ -179,11 +177,14 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let dtype = slice[16];
         println!("plugin: train_images: dtype: {dtype}");
 
+        println!("*** converting to tch::Tensor for train_images");
         to_tch_tensor(dtype, dims.as_slice(), data.as_slice())
     };
 
     // extract train_labels
     let train_labels: Tensor = {
+        println!("*** extracting data for train_labels");
+
         let offset = if input[2].ty() == ValType::I32 {
             input[2].to_i32()
         } else {
@@ -210,11 +211,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let data = memory
             .read(offset_data as u32, size_data as u32)
             .expect("plugin: train_labels: failed to extract tensor data");
-        println!(
-            "plugin: train_labels: data: {:?}, len: {}",
-            data,
-            data.len()
-        );
+        println!("plugin: train_labels: len: {}", data.len());
 
         // extract tensor's dimensions
         let offset_dims = i32::from_le_bytes(slice[8..12].try_into().unwrap());
@@ -232,11 +229,14 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let dtype = slice[16];
         println!("plugin: train_labels: dtype: {dtype}");
 
+        println!("*** converting to tch::Tensor for train_lables");
         to_tch_tensor(dtype, dims.as_slice(), data.as_slice())
     };
 
     // extract test_images
     let test_images: Tensor = {
+        println!("*** extracting data for test_images");
+
         let offset = if input[4].ty() == ValType::I32 {
             input[4].to_i32()
         } else {
@@ -263,7 +263,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let data = memory
             .read(offset_data as u32, size_data as u32)
             .expect("plugin: test_images: failed to extract tensor data");
-        println!("plugin: test_images: data: {:?}, len: {}", data, data.len());
+        println!("plugin: test_images: len: {}", data.len());
 
         // extract tensor's dimensions
         let offset_dims = i32::from_le_bytes(slice[8..12].try_into().unwrap());
@@ -281,11 +281,14 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let dtype = slice[16];
         println!("plugin: test_images: dtype: {dtype}");
 
+        println!("*** converting to tch::Tensor for test_images");
         to_tch_tensor(dtype, dims.as_slice(), data.as_slice())
     };
 
     // extract test_labels
     let test_labels: Tensor = {
+        println!("*** extracting data for test_labels");
+
         let offset = if input[6].ty() == ValType::I32 {
             input[6].to_i32()
         } else {
@@ -312,7 +315,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let data = memory
             .read(offset_data as u32, size_data as u32)
             .expect("plugin: test_labels: failed to extract tensor data");
-        println!("plugin: test_labels: data: {:?}, len: {}", data, data.len());
+        println!("plugin: test_labels: len: {}", data.len());
 
         // extract tensor's dimensions
         let offset_dims = i32::from_le_bytes(slice[8..12].try_into().unwrap());
@@ -330,6 +333,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let dtype = slice[16];
         println!("plugin: test_labels: dtype: {dtype}");
 
+        println!("*** converting to tch::Tensor for test_labels");
         to_tch_tensor(dtype, dims.as_slice(), data.as_slice())
     };
 
@@ -417,6 +421,10 @@ pub fn to_tch_tensor(dtype: u8, dims: &[i64], data: &[u8]) -> tch::Tensor {
         2 => Tensor::of_slice(data).reshape(dims),
         3 => {
             let data = protocol::bytes_to_i32_vec(data);
+            Tensor::of_slice(data.as_slice()).reshape(dims)
+        }
+        4 => {
+            let data = protocol::bytes_to_i64_vec(data);
             Tensor::of_slice(data.as_slice()).reshape(dims)
         }
         _ => panic!("plugin: train_images: unsupported dtype: {dtype}"),
@@ -511,12 +519,18 @@ pub mod protocol {
     }
 
     pub fn bytes_to_i64_vec(data: &[u8]) -> Vec<i64> {
-        let chunks: Vec<&[u8]> = data.chunks(4).collect();
+        let chunks: Vec<&[u8]> = data.chunks(8).collect();
         let v: Vec<i64> = chunks
             .into_iter()
             .map(|c| {
                 let mut rdr = Cursor::new(c);
-                rdr.read_i64::<LittleEndian>().expect("failed to read")
+                rdr.read_i64::<LittleEndian>().expect(
+                    format!(
+                        "plugin: protocol: failed to read. input data size: {}",
+                        data.len()
+                    )
+                    .as_str(),
+                )
             })
             .collect();
 
@@ -558,6 +572,7 @@ pub mod protocol {
     pub const TENSOR_TYPE_F32: TensorType = TensorType(1);
     pub const TENSOR_TYPE_U8: TensorType = TensorType(2);
     pub const TENSOR_TYPE_I32: TensorType = TensorType(3);
+    pub const TENSOR_TYPE_I64: TensorType = TensorType(4);
     impl TensorType {
         pub const fn raw(&self) -> u8 {
             self.0
