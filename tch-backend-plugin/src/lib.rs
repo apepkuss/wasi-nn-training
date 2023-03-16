@@ -46,7 +46,7 @@ fn set_input_tensor(
     caller: Caller,
     input: Vec<WasmValue>,
 ) -> Result<Vec<WasmValue>, HostFuncError> {
-    println!("This is `set_input_tensor` host function.");
+    println!("*** This is `set_input_tensor` host function ****");
 
     let memory = caller.memory(0).expect("failed to get memory at idex 0");
 
@@ -54,48 +54,34 @@ fn set_input_tensor(
         return Err(HostFuncError::User(1));
     }
 
-    let dt_offset = if input[0].ty() == ValType::I32 {
+    let data1_offset = if input[0].ty() == ValType::I32 {
         input[0].to_i32()
     } else {
         return Err(HostFuncError::User(2));
     };
-    println!("dt_offset: {dt_offset}");
+    println!("data1_offset: {data1_offset}");
 
-    let dt_size = if input[1].ty() == ValType::I32 {
+    let data1_size = if input[1].ty() == ValType::I32 {
         input[1].to_i32()
     } else {
         return Err(HostFuncError::User(2));
     };
-    println!("dt_size: {dt_size}");
-
-    let dm_offset = if input[2].ty() == ValType::I32 {
-        input[2].to_i32()
-    } else {
-        return Err(HostFuncError::User(3));
-    };
-    println!("dm_offset: {dm_offset}");
-
-    let dm_size = if input[3].ty() == ValType::I32 {
-        input[3].to_i32()
-    } else {
-        return Err(HostFuncError::User(4));
-    };
-    println!("dm_size: {dm_size}");
-
-    let ty = if input[4].ty() == ValType::I32 {
-        input[4].to_i32()
-    } else {
-        return Err(HostFuncError::User(5));
-    };
-    println!("ty: {ty}");
+    println!("data1_size: {data1_size}");
 
     // ======
 
     let data = memory
-        .data_pointer(dt_offset as u32, dt_size as u32)
+        .data_pointer(data1_offset as u32, 8)
         .expect("failed to get data from linear memory");
+    println!(
+        "[plugin] size of *const: {}",
+        std::mem::size_of::<*const u8>()
+    );
+    println!("[plugin] data ptr: {:p}", data);
 
-    let slice = unsafe { std::slice::from_raw_parts(data, 8) };
+    let slice = unsafe {
+        std::slice::from_raw_parts(data, std::mem::size_of::<protocol::GraphBuilder>() * 2)
+    };
     println!("slice1: {:?}", slice);
 
     // extract the first (offset, size) from the linear memory
@@ -108,16 +94,57 @@ fn set_input_tensor(
         .expect("failed to read numbers");
     println!("num1: {:?}", num1);
 
-    let dims = memory
-        .data_pointer(dm_offset as u32, dm_size as u32)
-        .expect("failed to get dims from linear memory");
-    let dims = unsafe { std::slice::from_raw_parts(dims, 2) };
-    let dims: Vec<i64> = dims.iter().map(|&x| x as i64).collect();
-    println!("dims: {:?}", dims);
+    let offset2 = i32::from_le_bytes(slice[8..12].try_into().unwrap());
+    let size2 = i32::from_le_bytes(slice[12..16].try_into().unwrap());
+    println!("offset2: {offset2}, size2: {size2}");
+    let num2 = memory
+        .read(offset2 as u32, size2 as u32)
+        .expect("failed to read numbers");
+    println!("num2: {:?}", num2);
 
-    let tensor = Tensor::of_slice(num1.as_slice());
-    let tensor = tensor.reshape(dims.as_slice());
-    println!("tensor: {:?}", tensor);
+    // ======= Tensor
+
+    let offset_tensor = if input[2].ty() == ValType::I32 {
+        input[2].to_i32()
+    } else {
+        return Err(HostFuncError::User(3));
+    };
+    println!("[plugin] offset_tensor: {offset_tensor}");
+
+    let len_tensor = if input[3].ty() == ValType::I32 {
+        input[3].to_i32()
+    } else {
+        return Err(HostFuncError::User(4));
+    };
+    println!("[plugin] len_tensor: {len_tensor}");
+
+    let ptr_tensor = memory
+        .data_pointer(offset_tensor as u32, 8)
+        .expect("failed to get data from linear memory");
+    println!("[plugin] ptr_tensor: {:p}", ptr_tensor); // 0x7f12de413f20
+
+    let slice = unsafe { std::slice::from_raw_parts(ptr_tensor, 20) };
+
+    let offset_dims = i32::from_le_bytes(slice[0..4].try_into().unwrap());
+    let size_dims = i32::from_le_bytes(slice[4..8].try_into().unwrap());
+    let dims = memory
+        .read(offset_dims as u32, size_dims as u32)
+        .expect("failed to read tensor dims");
+    let dims = protocol::bytes_to_i32_vec(dims.as_slice());
+    println!("[plugin] tensor dims: {:?}", dims);
+
+    let offset_data = i32::from_le_bytes(slice[8..12].try_into().unwrap());
+    let size_data = i32::from_le_bytes(slice[12..16].try_into().unwrap());
+    println!("({offset_data}, {size_data})");
+    let nums = memory
+        .read(offset_data as u32, size_data as u32)
+        .expect("failed to read data");
+    println!("[plugin] nums: {:?}", nums);
+
+    let ty = slice[16];
+    println!("dtype: {ty}");
+
+    println!("tensor ty: {:?}", slice[17..20].as_ref());
 
     Ok(vec![])
 }
@@ -646,4 +673,7 @@ pub mod protocol {
                 .finish()
         }
     }
+
+    pub type GraphBuilder<'a> = &'a [u8];
+    pub type GraphBuilderArray<'a> = &'a [GraphBuilder<'a>];
 }
