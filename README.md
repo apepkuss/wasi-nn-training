@@ -1,8 +1,22 @@
 # wasi-nn-training
 
-## Install libtorch
+This is an experimental project. The goal is to explore the feasibility of providing AI training capability based on WasmEdge Plugin mechanism. This project consists of two major projects: 
 
-Reference [Libtorch Manual Install](https://github.com/LaurentMazare/tch-rs#libtorch-manual-install)
+- `tch-backend-plugin` constructs a plugin prototype integrated with PyTorch.
+
+- `test-tch-backend` is a wasm app that is responsible for preparing data and calling the `train` interface to trigger a training task.
+
+## Requirements
+
+- OS: Ubuntu 20.04+
+
+- Mnist image data
+
+    The Mnist image data is located in the `data` directory of this repo.
+
+- Install libtorch
+
+    Reference [Libtorch Manual Install](https://github.com/LaurentMazare/tch-rs#libtorch-manual-install)
 
 ## Draft a resnet model
 
