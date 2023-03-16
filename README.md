@@ -1,6 +1,8 @@
-# wasi-nn-training
+# wasmedge-nn-training
 
-This is an experimental project. The goal is to explore the feasibility of providing AI training capability based on WasmEdge Plugin mechanism. This project consists of two major projects: 
+> This is an experimental project, and it is still in the active development. 
+
+The goal of this project is to explore the feasibility of providing AI training capability based on WasmEdge Plugin mechanism. This project consists of two major projects: 
 
 - `tch-backend-plugin` constructs a plugin prototype integrated with PyTorch.
 
