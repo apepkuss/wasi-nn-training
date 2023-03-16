@@ -76,7 +76,7 @@ cargo build -p test-tch-backend --target wasm32-wasi --release
 ## Train
 
 ```bash
-wasmedge --dir .:. /absolute/path/to/target/wasm32-wasi/release/test-tch-backend.wasm
+wasmedge --dir .:. target/wasm32-wasi/release/test-tch-backend.wasm
 ```
 
 ### Result
