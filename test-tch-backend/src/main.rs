@@ -1,17 +1,12 @@
-use mnist::*;
-use ndarray::{Array, Array2, Array3, Ix2};
+// use mnist::*;
+use ndarray::{Array2, Array3};
+use std::fs::File;
+use std::io::{self, BufReader, Read, Result, Write};
+use std::path::Path;
 
 mod plugin {
     #[link(wasm_import_module = "naive-math")]
     extern "C" {
-        pub fn add(x: i32, y: i32) -> i32;
-        pub fn set_input_tensor(
-            data_offset: i32,
-            data_size: i32,
-            dims_offset: i32,
-            dims_size: i32,
-            ty: i32,
-        );
         pub fn train(
             train_images_offset: i32,
             train_images_size: i32,
@@ -27,184 +22,68 @@ mod plugin {
     }
 }
 
-use byteorder::{BigEndian, ReadBytesExt};
-use std::any::Any;
-use std::io::prelude::*;
-use std::path::Path;
-
-use std::fs::File;
-use std::io::{self, BufReader, Read, Result};
-
-const TRAIN_SIZE: usize = 50_000;
-const VAL_SIZE: usize = 10_000;
-const TEST_SIZE: usize = 10_000;
-
-static TRN_LEN: u32 = 60_000;
-static TST_LEN: u32 = 10_000;
-
-const HEIGHT: usize = 28;
-const WIDTH: usize = 28;
-
-static TRN_IMG_FILENAME: &str = "train-images-idx3-ubyte";
-static TRN_LBL_FILENAME: &str = "train-labels-idx1-ubyte";
-static TST_IMG_FILENAME: &str = "t10k-images-idx3-ubyte";
-static TST_LBL_FILENAME: &str = "t10k-labels-idx1-ubyte";
-
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let x: i32 = args[1].parse().unwrap();
-    let y: i32 = args[2].parse().unwrap();
-
-    let res = unsafe { plugin::add(x, y) };
-    println!("{x} + {y} = {res}");
-
-    // use walkdir::WalkDir;
-
-    // let current_dir = std::env::current_dir().expect("failed to get current_dir");
-    // println!("current dir: {:?}", current_dir);
-    // let path = current_dir.as_path();
-
-    // for entry in WalkDir::new(path) {
-    //     let entry = entry.expect("failed to get entry");
-    //     println!("{}", entry.path().display());
-    // }
-
     // training images
+    print!("[Wasm] Preparing training images ... ");
+    io::stdout().flush().unwrap();
     let trn_img_filename = Path::new("data/train-images-idx3-ubyte");
     let train_images = read_images(trn_img_filename).expect("failed to load training images");
     let train_images = train_images
         .into_shape((60_000, 1, 28, 28))
         .expect("failed to reshape train_images");
-    println!("shape of train_images: {:?}", train_images.shape());
     let train_images_dims: Vec<i32> = train_images.shape().iter().map(|&c| c as i32).collect();
     let train_images_dims_bytes = protocol::to_bytes(train_images_dims.as_slice());
     let train_images_slice = train_images
         .as_slice()
         .expect("failed to convert ndarray to slice");
     let train_images_bytes = protocol::to_bytes(train_images_slice);
-    println!("size of train_images_bytes: {}", train_images_bytes.len());
+    // println!("size of train_images_bytes: {}", train_images_bytes.len());
+    println!("[Done] (shape: {:?}, dtype: f32)", train_images.shape());
 
     // training labels
+    print!("[Wasm] Preparing training images ... ");
+    io::stdout().flush().unwrap();
     let trn_lbl_filename = Path::new("data/train-labels-idx1-ubyte");
     let train_labels = read_labels(trn_lbl_filename).expect("failed to load training lables");
-    println!("shape of train_labels: {:?}", train_labels.shape());
     let train_labels_dims: Vec<i32> = train_labels.shape().iter().map(|&c| c as i32).collect();
     let train_labels_dims_bytes = protocol::to_bytes(train_labels_dims.as_slice());
     let train_labels_slice = train_labels
         .as_slice()
         .expect("failed to convert ndarray to slice");
     let train_labels_bytes = protocol::to_bytes(train_labels_slice);
-    println!("size of train_labels_bytes: {}", train_labels_bytes.len());
+    // println!("size of train_labels_bytes: {}", train_labels_bytes.len());
+    println!("[Done] (shape: {:?}, dtype: i64)", train_labels.shape());
 
     // test images
+    print!("[Wasm] Preparing training images ... ");
+    io::stdout().flush().unwrap();
     let tst_img_filename = Path::new("data/t10k-images-idx3-ubyte");
     let test_images = read_images(tst_img_filename).expect("failed to load test images");
     let test_images = test_images
         .into_shape((10_000, 1, 28, 28))
         .expect("failed to reshape test_images");
-    println!("shape of test_images: {:?}", test_images.shape());
     let test_images_dims: Vec<i32> = test_images.shape().iter().map(|&c| c as i32).collect();
     let test_images_dims_bytes = protocol::to_bytes(test_images_dims.as_slice());
     let test_images_slice = test_images
         .as_slice()
         .expect("failed to convert ndarray to slice");
     let test_images_bytes = protocol::to_bytes(test_images_slice);
-    println!("size of test_images_bytes: {}", test_images_bytes.len());
+    // println!("size of test_images_bytes: {}", test_images_bytes.len());
+    println!("[Done] (shape: {:?}, dtype: f32)", test_images.shape());
 
     // test labels
+    print!("[Wasm] Preparing training images ... ");
+    io::stdout().flush().unwrap();
     let tst_lbl_filename = Path::new("data/t10k-labels-idx1-ubyte");
     let test_labels = read_labels(tst_lbl_filename).expect("failed to load test labels");
-    println!("shape of train_labels: {:?}", test_labels.shape());
     let test_labels_dims: Vec<i32> = test_labels.shape().iter().map(|&c| c as i32).collect();
     let test_labels_dims_bytes = protocol::to_bytes(test_labels_dims.as_slice());
     let test_labels_slice = test_labels
         .as_slice()
         .expect("failed to convert ndarray to slice");
     let test_labels_bytes = protocol::to_bytes(test_labels_slice);
-    println!("size of test_labels_bytes: {}", test_labels_bytes.len());
-
-    // train images
-    // let train_images: ndarray::Array<f32, _> =
-    //     ndarray::array![[1., 2., 3.], [2., 3., 1.], [3., 1., 2.]];
-    // let train_images_dims: Vec<i32> = train_images.shape().iter().map(|&c| c as i32).collect();
-    // let train_images_dims_bytes = protocol::to_bytes(train_images_dims.as_slice());
-    // let train_images_slice = train_images
-    //     .as_slice()
-    //     .expect("failed to convert ndarray to slice");
-    // let train_images_bytes = protocol::to_bytes(train_images_slice);
-    // println!("size of train_images_bytes: {}", train_images_bytes.len());
-
-    // train labels
-    // let train_labels: ndarray::Array<f32, _> =
-    //     ndarray::array![[1., 2., 3.], [2., 3., 1.], [3., 1., 2.]];
-    // let train_labels_dims: Vec<i32> = train_labels.shape().iter().map(|&c| c as i32).collect();
-    // let train_labels_dims_bytes = protocol::to_bytes(train_labels_dims.as_slice());
-    // let train_labels_slice = train_labels
-    //     .as_slice()
-    //     .expect("failed to convert ndarray to slice");
-    // let train_labels_bytes = protocol::to_bytes(train_labels_slice);
-    // println!("size of train_labels_bytes: {}", train_labels_bytes.len());
-
-    // test images
-    // let test_images: ndarray::Array<f32, _> =
-    //     ndarray::array![[1., 2., 3., 4.], [2., 3., 4., 1.], [3., 4., 1., 2.]];
-    // let test_images_dims: Vec<i32> = test_images.shape().iter().map(|&c| c as i32).collect();
-    // let test_images_dims_bytes = protocol::to_bytes(test_images_dims.as_slice());
-    // let test_images_slice = test_images
-    //     .as_slice()
-    //     .expect("failed to convert ndarray to slice");
-    // let test_images_bytes = protocol::to_bytes(test_images_slice);
-    // println!("size of test_images_bytes: {}", test_images_bytes.len());
-
-    // test labels
-    // let test_labels: ndarray::Array<f32, _> =
-    //     ndarray::array![[1., 2., 3., 4.], [2., 3., 4., 1.], [3., 4., 1., 2.]];
-    // let test_labels_dims: Vec<i32> = test_labels.shape().iter().map(|&c| c as i32).collect();
-    // let test_labels_dims_bytes = protocol::to_bytes(test_labels_dims.as_slice());
-    // let test_labels_slice = test_labels
-    //     .as_slice()
-    //     .expect("failed to convert ndarray to slice");
-    // let test_labels_bytes = protocol::to_bytes(test_labels_slice);
     // println!("size of test_labels_bytes: {}", test_labels_bytes.len());
-
-    // =======
-    {
-        // println!("size of Array: {}", std::mem::size_of::<protocol::Array>());
-
-        // let data1 = [1u8, 2, 3, 2, 3, 1, 3, 1, 2];
-        // let arr1 = protocol::Array {
-        //     data: &data1 as *const _,
-        //     size: data1.len() as i32,
-        // };
-        // // let data2 = [6u8, 7, 8];
-        // // let arr2 = protocol::Array {
-        // //     data: &data2 as *const _,
-        // //     size: data2.len() as i32,
-        // // };
-
-        // let arrs = [arr1];
-        // let ptr = &arrs as *const _ as usize as i32;
-
-        // let dims1 = [3u8, 3];
-        // let dims1_ptr = &dims1 as *const _ as usize as i32;
-        // let dims1_size = dims1.len();
-
-        // unsafe {
-        //     plugin::set_input_tensor(
-        //         ptr,
-        //         (arrs.len() * std::mem::size_of::<protocol::Array>()) as i32,
-        //         dims1_ptr,
-        //         dims1_size as i32,
-        //         2,
-        //     );
-        // }
-    }
-    // ======
-
-    println!(
-        "size of MyTensor: {}",
-        std::mem::size_of::<protocol::MyTensor>()
-    );
+    println!("[Done] (shape: {:?}, dtype: i64) ", test_labels.shape());
 
     let train_images = protocol::MyTensor {
         data: train_images_bytes.as_ptr() as *const _,
@@ -260,92 +139,6 @@ fn main() {
             0, // device: CPU
         )
     }
-}
-
-static LBL_MAGIC_NUMBER: u32 = 0x0000_0801;
-
-fn labels(path: &std::path::Path, expected_length: u32) -> Vec<u8> {
-    let mut file = std::fs::File::open(path)
-        .unwrap_or_else(|_| panic!("Unable to find path to labels at {:?}.", path));
-    let magic_number = file
-        .read_u32::<BigEndian>()
-        .unwrap_or_else(|_| panic!("Unable to read magic number from {:?}.", path));
-    assert!(
-        LBL_MAGIC_NUMBER == magic_number,
-        "Expected magic number {} got {}.",
-        LBL_MAGIC_NUMBER,
-        magic_number
-    );
-    let length = file
-        .read_u32::<BigEndian>()
-        .unwrap_or_else(|_| panic!("Unable to length from {:?}.", path));
-    assert!(
-        expected_length == length,
-        "Expected data set length of {} got {}.",
-        expected_length,
-        length
-    );
-    file.bytes().map(|b| b.unwrap()).collect()
-}
-
-static IMG_MAGIC_NUMBER: u32 = 0x0000_0803;
-static ROWS: usize = 28;
-static COLS: usize = 28;
-
-fn images(path: &std::path::Path, expected_length: u32) -> Vec<u8> {
-    // Read whole file in memory
-    let mut content: Vec<u8> = Vec::new();
-    let mut file = {
-        let mut fh = std::fs::File::open(path)
-            .unwrap_or_else(|_| panic!("Unable to find path to images at {:?}.", path));
-        let _ = fh
-            .read_to_end(&mut content)
-            .unwrap_or_else(|_| panic!("Unable to read whole file in memory ({})", path.display()));
-        // The read_u32() method, coming from the byteorder crate's ReadBytesExt trait, cannot be
-        // used with a `Vec` directly, it requires a slice.
-        &content[..]
-    };
-
-    let magic_number = file
-        .read_u32::<BigEndian>()
-        .unwrap_or_else(|_| panic!("Unable to read magic number from {:?}.", path));
-    assert!(
-        IMG_MAGIC_NUMBER == magic_number,
-        "Expected magic number {} got {}.",
-        IMG_MAGIC_NUMBER,
-        magic_number
-    );
-    let length = file
-        .read_u32::<BigEndian>()
-        .unwrap_or_else(|_| panic!("Unable to length from {:?}.", path));
-    assert!(
-        expected_length == length,
-        "Expected data set length of {} got {}.",
-        expected_length,
-        length
-    );
-    let rows = file
-        .read_u32::<BigEndian>()
-        .unwrap_or_else(|_| panic!("Unable to number of rows from {:?}.", path))
-        as usize;
-    assert!(
-        ROWS == rows,
-        "Expected rows length of {} got {}.",
-        ROWS,
-        rows
-    );
-    let cols = file
-        .read_u32::<BigEndian>()
-        .unwrap_or_else(|_| panic!("Unable to number of columns from {:?}.", path))
-        as usize;
-    assert!(
-        COLS == cols,
-        "Expected cols length of {} got {}.",
-        COLS,
-        cols
-    );
-    // Convert `file` from a Vec to a slice.
-    file.to_vec()
 }
 
 pub fn image_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize, dim3: usize) -> Array3<f32> {
@@ -452,6 +245,37 @@ pub mod protocol {
         v.into_iter().collect()
     }
 
+    pub fn bytes_to_i32_vec(data: &[u8]) -> Vec<i32> {
+        let chunks: Vec<&[u8]> = data.chunks(4).collect();
+        let v: Vec<i32> = chunks
+            .into_iter()
+            .map(|c| {
+                let mut rdr = Cursor::new(c);
+                rdr.read_i32::<LittleEndian>().expect("failed to read")
+            })
+            .collect();
+
+        v.into_iter().collect()
+    }
+
+    pub fn bytes_to_i64_vec(data: &[u8]) -> Vec<i64> {
+        let chunks: Vec<&[u8]> = data.chunks(8).collect();
+        let v: Vec<i64> = chunks
+            .into_iter()
+            .map(|c| {
+                let mut rdr = Cursor::new(c);
+                rdr.read_i64::<LittleEndian>().expect(
+                    format!(
+                        "plugin: protocol: failed to read. input data size: {}",
+                        data.len()
+                    )
+                    .as_str(),
+                )
+            })
+            .collect();
+
+        v.into_iter().collect()
+    }
     #[repr(C)]
     #[derive(Clone, Debug)]
     pub struct Array {

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::io::Write;
 use wasmedge_sdk::{
     error::HostFuncError,
     host_function,
@@ -123,32 +124,34 @@ fn set_input_tensor(
 
 #[host_function]
 fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
-    println!("\n*** Welcom! This is `train` host function. ***\n");
+    println!("\n*** Welcome! This is `train` host function in `wasi-nn-training` plugin. ***\n");
 
-    let memory = caller.memory(0).expect("failed to get memory at idex 0");
-
+    // check the number of inputs
     assert_eq!(input.len(), 10);
+
+    // get the linear memory
+    let memory = caller.memory(0).expect("failed to get memory at idex 0");
 
     // extract train_images
     let train_images: Tensor = {
-        println!("*** extracting data for train_images");
+        print!("[Plugin] Converting training image data to tch::Tensor ... ");
+        std::io::stdout().flush().unwrap();
 
         let offset = if input[0].ty() == ValType::I32 {
             input[0].to_i32()
         } else {
             return Err(HostFuncError::User(1));
         };
-        println!("offset: {offset}");
+        // println!("offset: {offset}");
 
         let len = if input[1].ty() == ValType::I32 {
             input[1].to_i32()
         } else {
             return Err(HostFuncError::User(2));
         };
-        println!("len: {len}");
+        // println!("len: {len}");
 
         // parse train_images
-
         let data_ptr = memory
             .data_pointer(offset as u32, len as u32)
             .expect("plugin: train_images: failed to get the point to the data");
@@ -159,7 +162,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let data = memory
             .read(offset_data as u32, size_data as u32)
             .expect("plugin: train_images: failed to extract tensor data");
-        println!("plugin: train_images: len: {}", data.len());
+        // println!("plugin: train_images: len: {}", data.len());
 
         // extract tensor's dimensions
         let offset_dims = i32::from_le_bytes(slice[8..12].try_into().unwrap());
@@ -171,33 +174,41 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
             .iter()
             .map(|&c| c as i64)
             .collect();
-        println!("plugin: train_images: dims: {:?}", dims);
+        // println!("plugin: train_images: dims: {:?}", dims);
 
         // extract tensor's dtype
         let dtype = slice[16];
-        println!("plugin: train_images: dtype: {dtype}");
+        // println!("plugin: train_images: dtype: {dtype}");
 
-        println!("*** converting to tch::Tensor for train_images");
-        to_tch_tensor(dtype, dims.as_slice(), data.as_slice())
+        // converting to tch::Tensor for train_images
+        let tensor = to_tch_tensor(dtype, dims.as_slice(), data.as_slice());
+
+        println!(
+            "[Done] (shape: {:?}, dtype: {:?}) ",
+            tensor.size(),
+            tensor.kind()
+        );
+        tensor
     };
 
     // extract train_labels
     let train_labels: Tensor = {
-        println!("*** extracting data for train_labels");
+        print!("[Plugin] Converting training label data to tch::Tensor ... ");
+        std::io::stdout().flush().unwrap();
 
         let offset = if input[2].ty() == ValType::I32 {
             input[2].to_i32()
         } else {
             return Err(HostFuncError::User(3));
         };
-        println!("offset: {offset}");
+        // println!("offset: {offset}");
 
         let len = if input[3].ty() == ValType::I32 {
             input[3].to_i32()
         } else {
             return Err(HostFuncError::User(4));
         };
-        println!("len: {len}");
+        // println!("len: {len}");
 
         // parse train_labels
 
@@ -211,7 +222,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let data = memory
             .read(offset_data as u32, size_data as u32)
             .expect("plugin: train_labels: failed to extract tensor data");
-        println!("plugin: train_labels: len: {}", data.len());
+        // println!("plugin: train_labels: len: {}", data.len());
 
         // extract tensor's dimensions
         let offset_dims = i32::from_le_bytes(slice[8..12].try_into().unwrap());
@@ -223,33 +234,42 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
             .iter()
             .map(|&c| c as i64)
             .collect();
-        println!("plugin: train_labels: dims: {:?}", dims);
+        // println!("plugin: train_labels: dims: {:?}", dims);
 
         // extract tensor's dtype
         let dtype = slice[16];
-        println!("plugin: train_labels: dtype: {dtype}");
+        // println!("plugin: train_labels: dtype: {dtype}");
 
-        println!("*** converting to tch::Tensor for train_lables");
-        to_tch_tensor(dtype, dims.as_slice(), data.as_slice())
+        // converting to tch::Tensor for train_lables
+        let tensor = to_tch_tensor(dtype, dims.as_slice(), data.as_slice());
+
+        println!(
+            "[Done] (shape: {:?}, dtype: {:?}) ",
+            tensor.size(),
+            tensor.kind()
+        );
+
+        tensor
     };
 
     // extract test_images
     let test_images: Tensor = {
-        println!("*** extracting data for test_images");
+        print!("[Plugin] Converting test image data to tch::Tensor ... ");
+        std::io::stdout().flush().unwrap();
 
         let offset = if input[4].ty() == ValType::I32 {
             input[4].to_i32()
         } else {
             return Err(HostFuncError::User(5));
         };
-        println!("offset: {offset}");
+        // println!("offset: {offset}");
 
         let len = if input[5].ty() == ValType::I32 {
             input[5].to_i32()
         } else {
             return Err(HostFuncError::User(6));
         };
-        println!("len: {len}");
+        // println!("len: {len}");
 
         // parse test_images
 
@@ -263,7 +283,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let data = memory
             .read(offset_data as u32, size_data as u32)
             .expect("plugin: test_images: failed to extract tensor data");
-        println!("plugin: test_images: len: {}", data.len());
+        // println!("plugin: test_images: len: {}", data.len());
 
         // extract tensor's dimensions
         let offset_dims = i32::from_le_bytes(slice[8..12].try_into().unwrap());
@@ -275,33 +295,42 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
             .iter()
             .map(|&c| c as i64)
             .collect();
-        println!("plugin: test_images: dims: {:?}", dims);
+        // println!("plugin: test_images: dims: {:?}", dims);
 
         // extract tensor's dtype
         let dtype = slice[16];
-        println!("plugin: test_images: dtype: {dtype}");
+        // println!("plugin: test_images: dtype: {dtype}");
 
-        println!("*** converting to tch::Tensor for test_images");
-        to_tch_tensor(dtype, dims.as_slice(), data.as_slice())
+        // convert to tch::Tensor for test_images
+        let tensor = to_tch_tensor(dtype, dims.as_slice(), data.as_slice());
+
+        println!(
+            "[Done] (shape: {:?}, dtype: {:?}) ",
+            tensor.size(),
+            tensor.kind()
+        );
+
+        tensor
     };
 
     // extract test_labels
     let test_labels: Tensor = {
-        println!("*** extracting data for test_labels");
+        print!("[Plugin] Converting test label data to tch::Tensor ... ");
+        std::io::stdout().flush().unwrap();
 
         let offset = if input[6].ty() == ValType::I32 {
             input[6].to_i32()
         } else {
             return Err(HostFuncError::User(7));
         };
-        println!("offset: {offset}");
+        // println!("offset: {offset}");
 
         let len = if input[7].ty() == ValType::I32 {
             input[7].to_i32()
         } else {
             return Err(HostFuncError::User(8));
         };
-        println!("len: {len}");
+        // println!("len: {len}");
 
         // parse test_labels
 
@@ -315,7 +344,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let data = memory
             .read(offset_data as u32, size_data as u32)
             .expect("plugin: test_labels: failed to extract tensor data");
-        println!("plugin: test_labels: len: {}", data.len());
+        // println!("plugin: test_labels: len: {}", data.len());
 
         // extract tensor's dimensions
         let offset_dims = i32::from_le_bytes(slice[8..12].try_into().unwrap());
@@ -327,14 +356,22 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
             .iter()
             .map(|&c| c as i64)
             .collect();
-        println!("plugin: test_labels: dims: {:?}", dims);
+        // println!("plugin: test_labels: dims: {:?}", dims);
 
         // extract tensor's dtype
         let dtype = slice[16];
-        println!("plugin: test_labels: dtype: {dtype}");
+        // println!("plugin: test_labels: dtype: {dtype}");
 
-        println!("*** converting to tch::Tensor for test_labels");
-        to_tch_tensor(dtype, dims.as_slice(), data.as_slice())
+        // convert to tch::Tensor for test_labels
+        let tensor = to_tch_tensor(dtype, dims.as_slice(), data.as_slice());
+
+        println!(
+            "[Done] (shape: {:?}, dtype: {:?}) ",
+            tensor.size(),
+            tensor.kind()
+        );
+
+        tensor
     };
 
     let labels = if input[8].ty() == ValType::I64 {
@@ -342,7 +379,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     } else {
         return Err(HostFuncError::User(9));
     };
-    println!("labels: {labels}");
+    println!("[Plugin] Labels: {labels}");
 
     let ds = Dataset {
         train_images,
@@ -361,7 +398,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         0 => Device::Cpu,
         _ => panic!("unsupported device id: {device_id}"),
     };
-    println!("device: {:?}", device);
+    println!("[Plugin] Device: {:?}", device);
 
     train_model(ds, device).expect("failed to train model");
 
@@ -432,15 +469,11 @@ pub fn to_tch_tensor(dtype: u8, dims: &[i64], data: &[u8]) -> tch::Tensor {
 }
 
 pub fn train_model(dataset: Dataset, device: Device) -> Result<()> {
-    println!("start training ...");
-
     let module_path = "/root/workspace/wasi-nn-training/model.pt";
 
     let vs = VarStore::new(device);
     let mut trainable = TrainableCModule::load(module_path, vs.root())?;
     trainable.set_train();
-
-    println!("*** accuracy");
 
     let initial_acc = trainable.batch_accuracy_for_logits(
         &dataset.test_images,
@@ -448,10 +481,11 @@ pub fn train_model(dataset: Dataset, device: Device) -> Result<()> {
         vs.device(),
         1024,
     );
-    println!("Initial accuracy: {:5.2}%", 100. * initial_acc);
+    println!("[Plugin] Initial accuracy: {:5.2}%", 100. * initial_acc);
 
+    println!("[Plugin] Start training ... ");
     let mut opt = Adam::default().build(&vs, 1e-4)?;
-    for epoch in 1..20 {
+    for epoch in 1..10 {
         for (images, labels) in dataset
             .train_iter(128)
             .shuffle()
@@ -469,11 +503,17 @@ pub fn train_model(dataset: Dataset, device: Device) -> Result<()> {
             vs.device(),
             1024,
         );
-        println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
+        println!(
+            "\tepoch: {:4} test acc: {:5.2}%",
+            epoch,
+            100. * test_accuracy,
+        );
     }
-    trainable.save("trained_model.pt")?;
+    println!("[Plugin] Finished");
 
-    println!("[Done]");
+    trainable.save("trained_model.pt")?;
+    println!("[Plugin] The pre-trained model is dumped to `trained_model.pt`");
+
     Ok(())
 }
 
