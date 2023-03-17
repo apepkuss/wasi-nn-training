@@ -14,6 +14,11 @@ fn main() {
     // let data1_size = data1.len() as i32;
 
     println!("size of *const u8: {}", mem::size_of::<*const u8>());
+    println!("size of GraphBuilder: {}", mem::size_of::<GraphBuilder>());
+    println!(
+        "size of GraphBuilderArray: {}",
+        mem::size_of::<GraphBuilderArray>()
+    );
 
     let data2: GraphBuilder<'_> = &[5_u8, 4, 3, 2, 1];
 
@@ -47,8 +52,26 @@ fn main() {
     let offset_tensor1 = ptr_tensor1 as usize as i32;
     println!("tensor1 offset: {}", offset_tensor1);
 
+    let slice2 = &[1_u8, 2, 3, 4];
+    let dim2 = &[2_i32, 2];
+    let dim2_bytes = to_bytes(dim2);
+    let tensor2 = Tensor {
+        dimensions: dim2_bytes,
+        ty: TENSOR_TYPE_F32,
+        data: slice2,
+    };
+
+    println!("size of TensorElement: {}", mem::size_of::<TensorElement>());
+    println!("size of TensorArray: {}", mem::size_of::<TensorArray>());
+
+    println!("addr: {:p}", &tensor1);
+
+    let tensors: TensorArray<'_> = &[&tensor1];
+    let offset_tensors = tensors.as_ptr() as i32;
+    let len_tensors = 1;
+
     unsafe {
-        plugin::set_input_tensor(data_offset, data_size, offset_tensor1, 1, 0);
+        plugin::set_input_tensor(data_offset, data_size, offset_tensors, len_tensors, 0);
     }
 }
 
@@ -63,6 +86,9 @@ pub fn to_bytes<'a, T>(data: &'a [T]) -> &'a [u8] {
 
 pub type GraphBuilder<'a> = &'a [u8];
 pub type GraphBuilderArray<'a> = &'a [GraphBuilder<'a>];
+
+pub type TensorElement<'a> = &'a Tensor<'a>;
+pub type TensorArray<'a> = &'a [TensorElement<'a>];
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
