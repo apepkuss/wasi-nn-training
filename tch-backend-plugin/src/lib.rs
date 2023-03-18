@@ -188,14 +188,17 @@ fn set_input_tensor(
     let slice = unsafe {
         std::slice::from_raw_parts(
             ptr_tensors,
-            4, // std::mem::size_of::<protocol::TensorElement>() * len_tensors as usize,
+            protocol::SIZE_OF_TENSOR_ELEMENT as usize * len_tensors as usize,
         )
     };
     println!("[plugin] slice: {:?}", slice);
 
+    // * extract tenor1
     let offset1 = i32::from_le_bytes(slice[0..4].try_into().unwrap());
     println!("[plugin] offset1: {offset1}");
-    let slice1 = memory.read(offset1 as u32, 20).unwrap();
+    let slice1 = memory
+        .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
+        .unwrap();
     println!("slice1: {:?}", slice1);
 
     // parse tensor1's dimensions
@@ -216,6 +219,33 @@ fn set_input_tensor(
     // parse tensor1's type
     let dtype1 = slice1[16];
     println!("[plugin] dtype1: {dtype1}");
+
+    // * extract tensor2
+    let offset2 = i32::from_le_bytes(slice[4..8].try_into().unwrap());
+    println!("[plugin] offset2: {offset2}");
+    let slice2 = memory
+        .read(offset2 as u32, protocol::SIZE_OF_TENSOR)
+        .unwrap();
+    println!("slice2: {:?}", slice2);
+
+    // parse tensor2's dimensions
+    let offset_dims2 = i32::from_le_bytes(slice2[0..4].try_into().unwrap());
+    let len_dims2 = i32::from_le_bytes(slice2[4..8].try_into().unwrap());
+    let dims2 = memory
+        .read(offset_dims2 as u32, len_dims2 as u32)
+        .expect("failed to read memory");
+    let dims2 = protocol::bytes_to_i32_vec(dims2.as_slice());
+    println!("[plugin] dims2: {:?}", dims2);
+
+    // parse tensor2's data
+    let offset_data2 = i32::from_le_bytes(slice2[8..12].try_into().unwrap());
+    let len_data2 = i32::from_le_bytes(slice2[12..16].try_into().unwrap());
+    let data2 = memory.read(offset_data2 as u32, len_data2 as u32).unwrap();
+    println!("[plugin] data2: {:?}", data2);
+
+    // parse tensor2's type
+    let dtype2 = slice2[16];
+    println!("[plugin] dtype2: {dtype2}");
 
     Ok(vec![])
 }
@@ -692,8 +722,18 @@ pub mod protocol {
         pub ty: u8,          // 1 byte
     }
 
+    pub const SIZE_OF_TENSOR: u32 = 20;
+    pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
+    pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
+
     pub type TensorElement<'a> = &'a Tensor<'a>;
     pub type TensorArray<'a> = &'a [TensorElement<'a>];
+
+    pub enum Device {
+        Cpu,
+        Cuda(usize),
+        Mps,
+    }
 
     #[repr(C)]
     #[derive(Copy, Clone, Debug)]

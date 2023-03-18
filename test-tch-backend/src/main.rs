@@ -26,6 +26,7 @@ fn main() {
     // training images
     print!("[Wasm] Preparing training images ... ");
     io::stdout().flush().unwrap();
+
     let trn_img_filename = Path::new("data/train-images-idx3-ubyte");
     let train_images = read_images(trn_img_filename).expect("failed to load training images");
     let train_images = train_images
@@ -276,6 +277,7 @@ pub mod protocol {
 
         v.into_iter().collect()
     }
+
     #[repr(C)]
     #[derive(Clone, Debug)]
     pub struct Array {
@@ -292,6 +294,13 @@ pub mod protocol {
         pub dims_size: u32,  // 4 bytes
         pub ty: u8,          // 1 byte
     }
+
+    pub const SIZE_OF_TENSOR: u32 = 20;
+    pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
+    pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
+
+    pub type TensorElement<'a> = &'a Tensor<'a>;
+    pub type TensorArray<'a> = &'a [TensorElement<'a>];
 
     pub enum Device {
         Cpu,

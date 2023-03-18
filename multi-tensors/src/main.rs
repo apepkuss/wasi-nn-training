@@ -66,9 +66,9 @@ fn main() {
 
     println!("addr: {:p}", &tensor1);
 
-    let tensors: TensorArray<'_> = &[&tensor1];
+    let tensors: TensorArray<'_> = &[&tensor1, &tensor2];
     let offset_tensors = tensors.as_ptr() as i32;
-    let len_tensors = 1;
+    let len_tensors = tensors.len() as i32;
 
     unsafe {
         plugin::set_input_tensor(data_offset, data_size, offset_tensors, len_tensors, 0);
