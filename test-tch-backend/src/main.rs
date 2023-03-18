@@ -1,8 +1,11 @@
 // use mnist::*;
+
 use ndarray::{Array2, Array3};
+use std::convert::From;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Result, Write};
 use std::path::Path;
+use std::{mem, vec};
 
 mod plugin {
     #[link(wasm_import_module = "naive-math")]
@@ -10,12 +13,12 @@ mod plugin {
         pub fn train(
             train_images_offset: i32,
             train_images_size: i32,
-            train_labels_offset: i32,
-            train_labels_size: i32,
-            test_images_offset: i32,
-            test_images_size: i32,
-            test_labels_offset: i32,
-            test_labels_size: i32,
+            // train_labels_offset: i32,
+            // train_labels_size: i32,
+            // test_images_offset: i32,
+            // test_images_size: i32,
+            // test_labels_offset: i32,
+            // test_labels_size: i32,
             labels: i64,
             device: i32,
         );
@@ -23,119 +26,237 @@ mod plugin {
 }
 
 fn main() {
+    println!(
+        "[Wasm] size of TensorElement: {}",
+        mem::size_of::<protocol::TensorElement>()
+    );
+    println!(
+        "[Wasm] size of TensorArray: {}",
+        mem::size_of::<protocol::TensorArray>()
+    );
+    println!("size of Tensor: {}", mem::size_of::<protocol::Tensor>());
+    println!(
+        "size of TensorDimensions: {}",
+        mem::size_of::<protocol::TensorDimensions>()
+    );
+    println!(
+        "size of TensorType: {}",
+        mem::size_of::<protocol::TensorType>()
+    );
+    println!(
+        "size of TensorData: {}",
+        mem::size_of::<protocol::TensorData>()
+    );
+
+    let mut dataset: Vec<&protocol::Tensor> = vec![];
+
     // training images
+
     print!("[Wasm] Preparing training images ... ");
     io::stdout().flush().unwrap();
+
+    {
+        // let trn_img_filename = Path::new("data/train-images-idx3-ubyte");
+        // let train_images = read_images(trn_img_filename).expect("failed to load training images");
+        // let train_images = train_images
+        //     .into_shape((60_000, 1, 28, 28))
+        //     .expect("failed to reshape train_images");
+        // let train_images_dims: Vec<i32> = train_images.shape().iter().map(|&c| c as i32).collect();
+        // let train_images_dims_bytes = protocol::to_bytes(train_images_dims.as_slice());
+        // let train_images_slice = train_images
+        //     .as_slice()
+        //     .expect("failed to convert ndarray to slice");
+        // let train_images_bytes = protocol::to_bytes(train_images_slice);
+        // // println!("size of train_images_bytes: {}", train_images_bytes.len());
+        // println!("[Done] (shape: {:?}, dtype: f32)", train_images.shape());
+    }
 
     let trn_img_filename = Path::new("data/train-images-idx3-ubyte");
-    let train_images = read_images(trn_img_filename).expect("failed to load training images");
-    let train_images = train_images
-        .into_shape((60_000, 1, 28, 28))
-        .expect("failed to reshape train_images");
-    let train_images_dims: Vec<i32> = train_images.shape().iter().map(|&c| c as i32).collect();
-    let train_images_dims_bytes = protocol::to_bytes(train_images_dims.as_slice());
-    let train_images_slice = train_images
-        .as_slice()
-        .expect("failed to convert ndarray to slice");
-    let train_images_bytes = protocol::to_bytes(train_images_slice);
-    // println!("size of train_images_bytes: {}", train_images_bytes.len());
-    println!("[Done] (shape: {:?}, dtype: f32)", train_images.shape());
+    let train_images = read_images_new(trn_img_filename).expect("failed to load training images");
+
+    // shape = (batch, channel, row, cols)
+    let train_images_shape = [60_000_u32, 1, 28, 28];
+    let train_images_dims = protocol::to_bytes(&train_images_shape);
+    let train_images_tensor = protocol::Tensor {
+        dimensions: train_images_dims,
+        dtype: protocol::TENSOR_TYPE_F32,
+        data: train_images.as_slice(),
+    };
+
+    dataset.push(&train_images_tensor);
+
+    println!("[Wasm][Done]");
 
     // training labels
-    print!("[Wasm] Preparing training images ... ");
+
+    print!("[Wasm] Preparing training labels ... ");
     io::stdout().flush().unwrap();
+
+    {
+
+        // let trn_lbl_filename = Path::new("data/train-labels-idx1-ubyte");
+        // let train_labels = read_labels(trn_lbl_filename).expect("failed to load training lables");
+
+        // let train_labels_dims: Vec<u32> = train_labels.shape().iter().map(|&c| c as u32).collect();
+        // // println!("train_labels_dims: {:?}", train_labels_dims);
+        // let train_labels_dims_bytes = protocol::to_bytes(train_labels_dims.as_slice());
+        // let train_labels_slice = train_labels
+        //     .as_slice()
+        //     .expect("failed to convert ndarray to slice");
+        // let train_labels_bytes = protocol::to_bytes(train_labels_slice);
+        // // println!("size of train_labels_bytes: {}", train_labels_bytes.len());
+        // println!(
+        //     "[Done] (shape: {:?}, dtype: i64)",
+        //     train_labels.shape().len()
+        // );
+
+        // let train_labels_tensor = protocol::Tensor {
+        //     data: train_labels_bytes,
+        //     dimensions: train_labels_dims_bytes,
+        //     dtype: protocol::TENSOR_TYPE_I64,
+        // };
+
+        // println!("[Wasm] train labels' tensor: {:?}", train_labels_tensor);
+
+        // dataset.push(&train_labels_tensor);
+    }
+
     let trn_lbl_filename = Path::new("data/train-labels-idx1-ubyte");
-    let train_labels = read_labels(trn_lbl_filename).expect("failed to load training lables");
-    let train_labels_dims: Vec<i32> = train_labels.shape().iter().map(|&c| c as i32).collect();
-    let train_labels_dims_bytes = protocol::to_bytes(train_labels_dims.as_slice());
-    let train_labels_slice = train_labels
-        .as_slice()
-        .expect("failed to convert ndarray to slice");
-    let train_labels_bytes = protocol::to_bytes(train_labels_slice);
-    // println!("size of train_labels_bytes: {}", train_labels_bytes.len());
-    println!("[Done] (shape: {:?}, dtype: i64)", train_labels.shape());
+    let train_labels = read_labels_new(trn_lbl_filename).expect("failed to load training lables");
+
+    let train_labels_shape = [60_000_u32];
+    let train_labels_dims = protocol::to_bytes(&train_labels_shape);
+
+    let train_labels_tensor = protocol::Tensor {
+        data: train_labels.as_slice(),
+        dimensions: train_labels_dims,
+        dtype: protocol::TENSOR_TYPE_I64,
+    };
+
+    dataset.push(&train_labels_tensor);
+
+    println!("[Wasm][Done]");
 
     // test images
-    print!("[Wasm] Preparing training images ... ");
+
+    print!("[Wasm] Preparing test images ... ");
     io::stdout().flush().unwrap();
+
     let tst_img_filename = Path::new("data/t10k-images-idx3-ubyte");
-    let test_images = read_images(tst_img_filename).expect("failed to load test images");
-    let test_images = test_images
-        .into_shape((10_000, 1, 28, 28))
-        .expect("failed to reshape test_images");
-    let test_images_dims: Vec<i32> = test_images.shape().iter().map(|&c| c as i32).collect();
-    let test_images_dims_bytes = protocol::to_bytes(test_images_dims.as_slice());
-    let test_images_slice = test_images
-        .as_slice()
-        .expect("failed to convert ndarray to slice");
-    let test_images_bytes = protocol::to_bytes(test_images_slice);
-    // println!("size of test_images_bytes: {}", test_images_bytes.len());
-    println!("[Done] (shape: {:?}, dtype: f32)", test_images.shape());
+    let test_images = read_images_new(tst_img_filename).expect("failed to load test images");
+
+    let test_images_shape = [10_000_u32, 1, 28, 28];
+    let test_images_dims = protocol::to_bytes(test_images_shape.as_slice());
+
+    let test_images_tensor = protocol::Tensor {
+        dimensions: test_images_dims,
+        dtype: protocol::TENSOR_TYPE_F32,
+        data: test_images.as_slice(),
+    };
+    dataset.push(&test_images_tensor);
+
+    println!("[Wasm][Done]");
+
+    {
+
+        // let tst_img_filename = Path::new("data/t10k-images-idx3-ubyte");
+        // let test_images = read_images(tst_img_filename).expect("failed to load test images");
+        // let test_images = test_images
+        //     .into_shape((10_000, 1, 28, 28))
+        //     .expect("failed to reshape test_images");
+        // let test_images_dims: Vec<i32> = test_images.shape().iter().map(|&c| c as i32).collect();
+        // let test_images_dims_bytes = protocol::to_bytes(test_images_dims.as_slice());
+        // let test_images_slice = test_images
+        //     .as_slice()
+        //     .expect("failed to convert ndarray to slice");
+        // let test_images_bytes = protocol::to_bytes(test_images_slice);
+        // // println!("size of test_images_bytes: {}", test_images_bytes.len());
+        // println!("[Done] (shape: {:?}, dtype: f32)", test_images.shape());
+    }
 
     // test labels
-    print!("[Wasm] Preparing training images ... ");
+
+    print!("[Wasm] Preparing test lables ... ");
     io::stdout().flush().unwrap();
+
     let tst_lbl_filename = Path::new("data/t10k-labels-idx1-ubyte");
-    let test_labels = read_labels(tst_lbl_filename).expect("failed to load test labels");
-    let test_labels_dims: Vec<i32> = test_labels.shape().iter().map(|&c| c as i32).collect();
-    let test_labels_dims_bytes = protocol::to_bytes(test_labels_dims.as_slice());
-    let test_labels_slice = test_labels
-        .as_slice()
-        .expect("failed to convert ndarray to slice");
-    let test_labels_bytes = protocol::to_bytes(test_labels_slice);
-    // println!("size of test_labels_bytes: {}", test_labels_bytes.len());
-    println!("[Done] (shape: {:?}, dtype: i64) ", test_labels.shape());
+    let test_labels = read_labels_new(tst_lbl_filename).expect("failed to load test labels");
 
-    let train_images = protocol::MyTensor {
-        data: train_images_bytes.as_ptr() as *const _,
-        data_size: train_images_bytes.len() as u32,
-        dims: train_images_dims_bytes.as_ptr() as *const _,
-        dims_size: train_images_dims_bytes.len() as u32,
-        ty: 1, // f32
-    };
-    let train_images_offset = &train_images as *const _ as usize as i32;
-    let train_images_size = std::mem::size_of::<protocol::MyTensor>() as i32;
+    let test_labels_shape = [10_000_u32];
+    let test_labels_dims = protocol::to_bytes(test_labels_shape.as_slice());
 
-    let train_labels = protocol::MyTensor {
-        data: train_labels_bytes.as_ptr() as *const _,
-        data_size: train_labels_bytes.len() as u32,
-        dims: train_labels_dims_bytes.as_ptr() as *const _,
-        dims_size: train_labels_dims_bytes.len() as u32,
-        ty: 4, // i64
+    let test_labels_tensor = protocol::Tensor {
+        dimensions: &test_labels_dims,
+        dtype: protocol::TENSOR_TYPE_I64,
+        data: test_labels.as_slice(),
     };
-    let train_labels_offset = &train_labels as *const _ as usize as i32;
-    let train_labels_size = std::mem::size_of::<protocol::MyTensor>() as i32;
 
-    let test_images = protocol::MyTensor {
-        data: test_images_bytes.as_ptr() as *const _,
-        data_size: test_images_bytes.len() as u32,
-        dims: test_images_dims_bytes.as_ptr() as *const _,
-        dims_size: test_images_dims_bytes.len() as u32,
-        ty: 1, // f32
-    };
-    let test_images_offset = &test_images as *const _ as usize as i32;
-    let test_images_size = std::mem::size_of::<protocol::MyTensor>() as i32;
+    dataset.push(&test_labels_tensor);
 
-    let test_labels = protocol::MyTensor {
-        data: test_labels_bytes.as_ptr() as *const _,
-        data_size: test_labels_bytes.len() as u32,
-        dims: test_labels_dims_bytes.as_ptr() as *const _,
-        dims_size: test_labels_dims_bytes.len() as u32,
-        ty: 4, // i64
-    };
-    let test_labels_offset = &test_labels as *const _ as usize as i32;
-    let test_labels_size = std::mem::size_of::<protocol::MyTensor>() as i32;
+    println!("[Wasm][Done]");
+
+    {
+        // let tst_lbl_filename = Path::new("data/t10k-labels-idx1-ubyte");
+        // let test_labels = read_labels(tst_lbl_filename).expect("failed to load test labels");
+        // let test_labels_dims: Vec<i32> = test_labels.shape().iter().map(|&c| c as i32).collect();
+        // let test_labels_dims_bytes = protocol::to_bytes(test_labels_dims.as_slice());
+        // let test_labels_slice = test_labels
+        //     .as_slice()
+        //     .expect("failed to convert ndarray to slice");
+        // let test_labels_bytes = protocol::to_bytes(test_labels_slice);
+        // // println!("size of test_labels_bytes: {}", test_labels_bytes.len());
+        // println!("[Done] (shape: {:?}, dtype: i64) ", test_labels.shape());
+
+        // let train_images = protocol::MyTensor {
+        //     data: train_images_bytes.as_ptr() as *const _,
+        //     data_size: train_images_bytes.len() as u32,
+        //     dims: train_images_dims_bytes.as_ptr() as *const _,
+        //     dims_size: train_images_dims_bytes.len() as u32,
+        //     ty: 1, // f32
+        // };
+        // let train_images_offset = &train_images as *const _ as usize as i32;
+        // let train_images_size = std::mem::size_of::<protocol::MyTensor>() as i32;
+
+        // let train_labels = protocol::MyTensor {
+        //     data: train_labels_bytes.as_ptr() as *const _,
+        //     data_size: train_labels_bytes.len() as u32,
+        //     dims: train_labels_dims_bytes.as_ptr() as *const _,
+        //     dims_size: train_labels_dims_bytes.len() as u32,
+        //     ty: 4, // i64
+        // };
+        // let train_labels_offset = &train_labels as *const _ as usize as i32;
+        // let train_labels_size = std::mem::size_of::<protocol::MyTensor>() as i32;
+
+        // let test_images = protocol::MyTensor {
+        //     data: test_images_bytes.as_ptr() as *const _,
+        //     data_size: test_images_bytes.len() as u32,
+        //     dims: test_images_dims_bytes.as_ptr() as *const _,
+        //     dims_size: test_images_dims_bytes.len() as u32,
+        //     ty: 1, // f32
+        // };
+        // let test_images_offset = &test_images as *const _ as usize as i32;
+        // let test_images_size = std::mem::size_of::<protocol::MyTensor>() as i32;
+
+        // let test_labels = protocol::MyTensor {
+        //     data: test_labels_bytes.as_ptr() as *const _,
+        //     data_size: test_labels_bytes.len() as u32,
+        //     dims: test_labels_dims_bytes.as_ptr() as *const _,
+        //     dims_size: test_labels_dims_bytes.len() as u32,
+        //     ty: 4, // i64
+        // };
+        // let test_labels_offset = &test_labels as *const _ as usize as i32;
+        // let test_labels_size = std::mem::size_of::<protocol::MyTensor>() as i32;
+    }
+
+    let offset_dataset = dataset.as_ptr() as *const _ as usize as i32;
+    let len_dataset = dataset.len() as i32;
+
+    println!("[Wasm] len_dataset: {len_dataset}");
 
     unsafe {
         plugin::train(
-            train_images_offset,
-            train_images_size,
-            train_labels_offset,
-            train_labels_size,
-            test_images_offset,
-            test_images_size,
-            test_labels_offset,
-            test_labels_size,
+            offset_dataset,
+            len_dataset,
             10,
             0, // device: CPU
         )
@@ -179,8 +300,6 @@ fn check_magic_number<T: Read>(reader: &mut T, expected: u32) -> Result<()> {
     Ok(())
 }
 
-use std::convert::From;
-
 fn read_labels(filename: &std::path::Path) -> Result<ndarray::Array<i64, ndarray::Ix1>> {
     let mut buf_reader = BufReader::new(File::open(filename)?);
     check_magic_number(&mut buf_reader, 2049)?;
@@ -189,6 +308,23 @@ fn read_labels(filename: &std::path::Path) -> Result<ndarray::Array<i64, ndarray
     buf_reader.read_exact(&mut data)?;
 
     Ok(ndarray::Array::from_vec(data).mapv(i64::from))
+
+    // Ok(Tensor::of_slice(&data).to_kind(Kind::Int64))
+}
+
+fn read_labels_new(filename: &std::path::Path) -> Result<Vec<u8>> {
+    let mut buf_reader = BufReader::new(File::open(filename)?);
+    check_magic_number(&mut buf_reader, 2049)?;
+    let samples = read_u32(&mut buf_reader)?;
+    let mut data = vec![0u8; samples as usize];
+    buf_reader.read_exact(&mut data)?;
+
+    let data: Vec<i64> = data.into_iter().map(|c| i64::from(c)).collect();
+    let data = protocol::to_bytes(&data).to_vec();
+
+    Ok(data)
+
+    // Ok(ndarray::Array::from_vec(data).mapv(i64::from))
 
     // Ok(Tensor::of_slice(&data).to_kind(Kind::Int64))
 }
@@ -210,6 +346,35 @@ fn read_images(filename: &std::path::Path) -> Result<ndarray::Array<f32, ndarray
         / 255.;
 
     Ok(arr)
+
+    // let tensor = Tensor::of_slice(&data)
+    //     .view((i64::from(samples), i64::from(rows * cols)))
+    //     .to_kind(Kind::Float);
+    // Ok(tensor / 255.)
+}
+
+fn read_images_new(filename: &std::path::Path) -> Result<Vec<u8>> {
+    let mut buf_reader = BufReader::new(File::open(filename)?);
+    check_magic_number(&mut buf_reader, 2051)?;
+    let samples = read_u32(&mut buf_reader)?;
+    let rows = read_u32(&mut buf_reader)?;
+    let cols = read_u32(&mut buf_reader)?;
+    let data_len = samples * rows * cols;
+    let mut data = vec![0u8; data_len as usize];
+    buf_reader.read_exact(&mut data)?;
+
+    let data: Vec<f32> = data.into_iter().map(|c| f32::from(c) / 255.).collect();
+    let data = protocol::to_bytes(&data).to_vec();
+
+    Ok(data)
+
+    // let shape = (samples as usize, (rows * cols) as usize);
+    // let arr = ndarray::Array::from_shape_vec(shape, data)
+    //     .expect("failed to create ndarray for images")
+    //     .mapv(f32::from)
+    //     / 255.;
+
+    // Ok(arr)
 
     // let tensor = Tensor::of_slice(&data)
     //     .view((i64::from(samples), i64::from(rows * cols)))
@@ -259,6 +424,19 @@ pub mod protocol {
         v.into_iter().collect()
     }
 
+    pub fn bytes_to_u32_vec(data: &[u8]) -> Vec<u32> {
+        let chunks: Vec<&[u8]> = data.chunks(4).collect();
+        let v: Vec<u32> = chunks
+            .into_iter()
+            .map(|c| {
+                let mut rdr = Cursor::new(c);
+                rdr.read_u32::<LittleEndian>().expect("failed to read")
+            })
+            .collect();
+
+        v.into_iter().collect()
+    }
+
     pub fn bytes_to_i64_vec(data: &[u8]) -> Vec<i64> {
         let chunks: Vec<&[u8]> = data.chunks(8).collect();
         let v: Vec<i64> = chunks
@@ -295,29 +473,32 @@ pub mod protocol {
         pub ty: u8,          // 1 byte
     }
 
-    pub const SIZE_OF_TENSOR: u32 = 20;
-    pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
-    pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
-
-    pub type TensorElement<'a> = &'a Tensor<'a>;
-    pub type TensorArray<'a> = &'a [TensorElement<'a>];
-
     pub enum Device {
         Cpu,
         Cuda(usize),
         Mps,
     }
 
+    pub const SIZE_OF_TENSOR: u32 = 20;
+    pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
+    pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
+
+    // size: 4 bytes
+    pub type TensorElement<'a> = &'a Tensor<'a>;
+    // size: 8 bytes
+    pub type TensorArray<'a> = &'a [TensorElement<'a>];
+
+    // size: 20 bytes
     #[repr(C)]
     #[derive(Copy, Clone, Debug)]
     pub struct Tensor<'a> {
-        pub dimensions: TensorDimensions<'a>, // 8 bytes
-        pub ty: TensorType,                   // 1 bytes
         pub data: TensorData<'a>,             // 8 bytes
+        pub dimensions: TensorDimensions<'a>, // 8 bytes
+        pub dtype: TensorType,                // 1 bytes
     }
 
     pub type TensorData<'a> = &'a [u8];
-    pub type TensorDimensions<'a> = &'a [u32];
+    pub type TensorDimensions<'a> = &'a [u8];
 
     #[repr(transparent)]
     #[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -341,6 +522,7 @@ pub mod protocol {
                 _ => unsafe { core::hint::unreachable_unchecked() },
             }
         }
+
         pub fn message(&self) -> &'static str {
             match self.0 {
                 0 => "",
