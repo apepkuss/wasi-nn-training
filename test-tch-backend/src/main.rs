@@ -10,18 +10,7 @@ use std::{mem, vec};
 mod plugin {
     #[link(wasm_import_module = "naive-math")]
     extern "C" {
-        pub fn train(
-            train_images_offset: i32,
-            train_images_size: i32,
-            // train_labels_offset: i32,
-            // train_labels_size: i32,
-            // test_images_offset: i32,
-            // test_images_size: i32,
-            // test_labels_offset: i32,
-            // test_labels_size: i32,
-            labels: i64,
-            device: i32,
-        );
+        pub fn train(train_images_offset: i32, train_images_size: i32, labels: i64, device: i32);
     }
 }
 
