@@ -22,7 +22,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
-    assert_eq!(input.len(), 8);
+    assert_eq!(input.len(), 9);
 
     // get the linear memory
     let memory = caller.memory(0).expect("failed to get memory at idex 0");
@@ -277,8 +277,19 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         .expect("[Plugin] failed to parse optimizer");
     println!("[Plugin] Optimizer: {:?}", optimizer);
 
+    // loss function
+    let loss_fn = if input[8].ty() == ValType::I32 {
+        input[8].to_i32()
+    } else {
+        return Err(HostFuncError::User(9));
+    };
+    let loss_fn: protocol::LossFunction = num_renamed::FromPrimitive::from_i32(loss_fn)
+        .expect("[Plugin] failed to parse loss function");
+    println!("[Plugin] Loss function: {:?}", loss_fn);
+
     // start training
-    train_model(ds, device, lr, epochs, batch_size, optimizer).expect("failed to train model");
+    train_model(ds, device, lr, epochs, batch_size, optimizer, loss_fn)
+        .expect("failed to train model");
 
     Ok(vec![])
 }
@@ -290,6 +301,7 @@ fn train_model(
     epochs: i32,
     batch_size: i64,
     optimizer: protocol::Optimizer,
+    loss_fn: protocol::LossFunction,
 ) -> Result<()> {
     let module_path = "/root/workspace/wasi-nn-training/model.pt";
 
@@ -600,7 +612,7 @@ unsafe extern "C" fn create_test_module(
         .expect("failed to create host function: add")
         .with_func::<(i32, i32, i32, i32, i32), ()>("set_input_tensor", set_input_tensor)
         .expect("failed to create host function: set_input_tensor")
-        .with_func::<(i32, i32, i64, i32, f64, i32, i64, i32), ()>("train", train)
+        .with_func::<(i32, i32, i64, i32, f64, i32, i64, i32, i32), ()>("train", train)
         .expect("failed to create set_dataset host function")
         .build(module_name)
         .expect("failed to create import object");
@@ -754,6 +766,12 @@ pub mod protocol {
         Adam,
         RmsProp,
         Sgd,
+    }
+
+    #[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
+    pub enum LossFunction {
+        CrossEntropy,
+        CrossEntropyForLogits,
     }
 
     pub enum Device {

@@ -23,6 +23,7 @@ mod plugin {
             epochs: i32,
             batch_size: i64,
             optimizer: i32,
+            loss_fn: i32,
         );
     }
 }
@@ -116,8 +117,13 @@ fn main() {
     let offset_dataset = dataset.as_ptr() as *const _ as usize as i32;
     let len_dataset = dataset.len() as i32;
 
+    // optimizer
     let optimizer = num_renamed::ToPrimitive::to_i32(&protocol::Optimizer::Adam)
         .expect("[Wasm] Failed to convert optimizer to i32");
+
+    // loss function
+    let loss_fn = num_renamed::ToPrimitive::to_i32(&protocol::LossFunction::CrossEntropyForLogits)
+        .expect("[Wasm] Failed to convert loss function to i32");
 
     unsafe {
         plugin::train(
@@ -129,6 +135,7 @@ fn main() {
             10,
             128,
             optimizer,
+            loss_fn,
         )
     }
 }
@@ -348,6 +355,12 @@ pub mod protocol {
         Adam,
         RmsProp,
         Sgd,
+    }
+
+    #[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
+    pub enum LossFunction {
+        CrossEntropy,
+        CrossEntropyForLogits,
     }
 
     pub enum Device {

@@ -99,17 +99,18 @@ wasmedge --dir .:. target/wasm32-wasi/release/test-tch-backend.wasm
 [Plugin] Epochs: 10
 [Plugin] batch size: 128
 [Plugin] Optimizer: Adam
-[Plugin] Initial accuracy:  9.50%
+[Plugin] Loss function: CrossEntropyForLogits
+[Plugin] Initial accuracy:  9.52%
 [Plugin] Start training ... 
-        epoch:    1 test acc: 86.86%
-        epoch:    2 test acc: 89.72%
-        epoch:    3 test acc: 90.22%
-        epoch:    4 test acc: 90.49%
-        epoch:    5 test acc: 90.76%
-        epoch:    6 test acc: 91.14%
-        epoch:    7 test acc: 91.41%
-        epoch:    8 test acc: 91.20%
-        epoch:    9 test acc: 91.06%
+        epoch:    1 test acc: 87.17%
+        epoch:    2 test acc: 89.40%
+        epoch:    3 test acc: 90.61%
+        epoch:    4 test acc: 90.75%
+        epoch:    5 test acc: 90.89%
+        epoch:    6 test acc: 91.48%
+        epoch:    7 test acc: 91.27%
+        epoch:    8 test acc: 91.03%
+        epoch:    9 test acc: 90.80%
 [Plugin] Finished
 [Plugin] The pre-trained model is dumped to `trained_model.pt`
 ```
