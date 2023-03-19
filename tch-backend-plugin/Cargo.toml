@@ -11,3 +11,6 @@ wasmedge-sdk = { workspace = true }
 tch = {workspace = true}
 byteorder = "1.4.3"
 anyhow = "1"
+num-traits = "0.2"
+num-derive = "0.3"
+num = "0.4.0"

@@ -1,5 +1,10 @@
 use anyhow::Result;
 use std::io::{self, Write};
+
+extern crate num as num_renamed;
+#[macro_use]
+extern crate num_derive;
+
 use wasmedge_sdk::{
     error::HostFuncError,
     host_function,
@@ -7,7 +12,7 @@ use wasmedge_sdk::{
     Caller, ImportObjectBuilder, ValType, WasmValue,
 };
 
-use tch::nn::{Adam, ModuleT, OptimizerConfig, VarStore};
+use tch::nn::{Adam, ModuleT, OptimizerConfig, RmsProp, Sgd, VarStore};
 use tch::vision::dataset::Dataset;
 use tch::TrainableCModule;
 use tch::{Device, Tensor};
@@ -17,7 +22,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
-    assert_eq!(input.len(), 7);
+    assert_eq!(input.len(), 8);
 
     // get the linear memory
     let memory = caller.memory(0).expect("failed to get memory at idex 0");
@@ -262,8 +267,18 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     };
     println!("[Plugin] batch size: {batch_size}");
 
+    // optimizer
+    let optimizer = if input[7].ty() == ValType::I32 {
+        input[7].to_i32()
+    } else {
+        return Err(HostFuncError::User(8));
+    };
+    let optimizer: protocol::Optimizer = num_renamed::FromPrimitive::from_i32(optimizer)
+        .expect("[Plugin] failed to parse optimizer");
+    println!("[Plugin] Optimizer: {:?}", optimizer);
+
     // start training
-    train_model(ds, device, lr, epochs, batch_size).expect("failed to train model");
+    train_model(ds, device, lr, epochs, batch_size, optimizer).expect("failed to train model");
 
     Ok(vec![])
 }
@@ -274,6 +289,7 @@ fn train_model(
     lr: f64,
     epochs: i32,
     batch_size: i64,
+    optimizer: protocol::Optimizer,
 ) -> Result<()> {
     let module_path = "/root/workspace/wasi-nn-training/model.pt";
 
@@ -289,8 +305,20 @@ fn train_model(
     );
     println!("[Plugin] Initial accuracy: {:5.2}%", 100. * initial_acc);
 
+    let mut opt = match optimizer {
+        protocol::Optimizer::Adam => Adam::default()
+            .build(&vs, lr)
+            .expect("[Train] failed to create tch::Adam optimizer"),
+        protocol::Optimizer::RmsProp => RmsProp::default()
+            .build(&vs, lr)
+            .expect("[Train] failed to create tch::RmsProp optimizer"),
+        protocol::Optimizer::Sgd => Sgd::default()
+            .build(&vs, lr)
+            .expect("[Train] failed to create tch::Sgd optimizer"),
+    };
+
     println!("[Plugin] Start training ... ");
-    let mut opt = Adam::default().build(&vs, lr).expect("[train] optimizer");
+    // let mut opt = Adam::default().build(&vs, lr).expect("[Train] optimizer");
     for epoch in 1..epochs {
         for (images, labels) in dataset
             .train_iter(batch_size)
@@ -572,7 +600,7 @@ unsafe extern "C" fn create_test_module(
         .expect("failed to create host function: add")
         .with_func::<(i32, i32, i32, i32, i32), ()>("set_input_tensor", set_input_tensor)
         .expect("failed to create host function: set_input_tensor")
-        .with_func::<(i32, i32, i64, i32, f64, i32, i64), ()>("train", train)
+        .with_func::<(i32, i32, i64, i32, f64, i32, i64, i32), ()>("train", train)
         .expect("failed to create set_dataset host function")
         .build(module_name)
         .expect("failed to create import object");
@@ -720,6 +748,13 @@ pub mod protocol {
 
     pub type TensorElement<'a> = &'a Tensor<'a>;
     pub type TensorArray<'a> = &'a [TensorElement<'a>];
+
+    #[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
+    pub enum Optimizer {
+        Adam,
+        RmsProp,
+        Sgd,
+    }
 
     pub enum Device {
         Cpu,

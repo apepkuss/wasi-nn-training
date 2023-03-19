@@ -7,6 +7,10 @@ use std::io::{self, BufReader, Read, Result, Write};
 use std::path::Path;
 use std::{mem, vec};
 
+extern crate num as num_renamed;
+#[macro_use]
+extern crate num_derive;
+
 mod plugin {
     #[link(wasm_import_module = "naive-math")]
     extern "C" {
@@ -18,6 +22,7 @@ mod plugin {
             lr: f64,
             epochs: i32,
             batch_size: i64,
+            optimizer: i32,
         );
     }
 }
@@ -111,6 +116,9 @@ fn main() {
     let offset_dataset = dataset.as_ptr() as *const _ as usize as i32;
     let len_dataset = dataset.len() as i32;
 
+    let optimizer = num_renamed::ToPrimitive::to_i32(&protocol::Optimizer::Adam)
+        .expect("[Wasm] Failed to convert optimizer to i32");
+
     unsafe {
         plugin::train(
             offset_dataset,
@@ -120,6 +128,7 @@ fn main() {
             1e-4,
             10,
             128,
+            optimizer,
         )
     }
 }
@@ -332,6 +341,13 @@ pub mod protocol {
         pub dims: *const u8, // 4 bytes
         pub dims_size: u32,  // 4 bytes
         pub ty: u8,          // 1 byte
+    }
+
+    #[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
+    pub enum Optimizer {
+        Adam,
+        RmsProp,
+        Sgd,
     }
 
     pub enum Device {
