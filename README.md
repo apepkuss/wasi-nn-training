@@ -82,30 +82,31 @@ wasmedge --dir .:. target/wasm32-wasi/release/test-tch-backend.wasm
 ### Result
 
 ```bash
-[Wasm] Preparing training images ... [Done] (shape: [60000, 1, 28, 28], dtype: f32)
-[Wasm] Preparing training images ... [Done] (shape: [60000], dtype: i64)
-[Wasm] Preparing training images ... [Done] (shape: [10000, 1, 28, 28], dtype: f32)
-[Wasm] Preparing training images ... [Done] (shape: [10000], dtype: i64) 
+[Wasm] Preparing training images ... [Done]
+[Wasm] Preparing training labels ... [Done]
+[Wasm] Preparing test images ... [Done]
+[Wasm] Preparing test lables ... [Done]
+[Wasm] len_dataset: 4
 
-*** Welcome! This is `train` host function in `wasi-nn-training` plugin. ***
+*** Welcome! This is `wasmedge-nn-training` plugin. ***
 
-[Plugin] Converting training image data to tch::Tensor ... [Done] (shape: [60000, 1, 28, 28], dtype: Float) 
-[Plugin] Converting training label data to tch::Tensor ... [Done] (shape: [60000], dtype: Int64) 
-[Plugin] Converting test image data to tch::Tensor ... [Done] (shape: [10000, 1, 28, 28], dtype: Float) 
-[Plugin] Converting test label data to tch::Tensor ... [Done] (shape: [10000], dtype: Int64) 
+[Plugin] Preparing train images ... [Done] (shape: [60000, 1, 28, 28], dtype: Float)
+[Plugin] Preparing train labels ... [Done] (shape: [60000], dtype: Int64)
+[Plugin] Preparing test images ... [Done] (shape: [10000, 1, 28, 28], dtype: Float)
+[Plugin] Preparing test labels ... [Done] (shape: [10000], dtype: Int64)
 [Plugin] Labels: 10
 [Plugin] Device: Cpu
-[Plugin] Initial accuracy:  9.47%
+[Plugin] Initial accuracy:  9.58%
 [Plugin] Start training ... 
-        epoch:    1 test acc: 86.83%
-        epoch:    2 test acc: 89.67%
-        epoch:    3 test acc: 90.36%
-        epoch:    4 test acc: 89.90%
-        epoch:    5 test acc: 90.88%
-        epoch:    6 test acc: 91.12%
+        epoch:    1 test acc: 87.15%
+        epoch:    2 test acc: 89.60%
+        epoch:    3 test acc: 90.17%
+        epoch:    4 test acc: 90.13%
+        epoch:    5 test acc: 90.99%
+        epoch:    6 test acc: 91.15%
         epoch:    7 test acc: 91.11%
-        epoch:    8 test acc: 91.18%
-        epoch:    9 test acc: 91.16%
+        epoch:    8 test acc: 91.16%
+        epoch:    9 test acc: 91.00%
 [Plugin] Finished
 [Plugin] The pre-trained model is dumped to `trained_model.pt`
 ```
