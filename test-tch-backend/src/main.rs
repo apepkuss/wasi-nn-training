@@ -17,6 +17,7 @@ mod plugin {
             device: i32,
             lr: f64,
             epochs: i32,
+            batch_size: i64,
         );
     }
 }
@@ -110,8 +111,6 @@ fn main() {
     let offset_dataset = dataset.as_ptr() as *const _ as usize as i32;
     let len_dataset = dataset.len() as i32;
 
-    println!("[Wasm] len_dataset: {len_dataset}");
-
     unsafe {
         plugin::train(
             offset_dataset,
@@ -120,6 +119,7 @@ fn main() {
             0, // device: CPU
             1e-4,
             10,
+            128,
         )
     }
 }
