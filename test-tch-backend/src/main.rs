@@ -10,7 +10,13 @@ use std::{mem, vec};
 mod plugin {
     #[link(wasm_import_module = "naive-math")]
     extern "C" {
-        pub fn train(train_images_offset: i32, train_images_size: i32, labels: i64, device: i32);
+        pub fn train(
+            train_images_offset: i32,
+            train_images_size: i32,
+            labels: i64,
+            device: i32,
+            lr: f64,
+        );
     }
 }
 
@@ -111,6 +117,7 @@ fn main() {
             len_dataset,
             10,
             0, // device: CPU
+            1e-4,
         )
     }
 }

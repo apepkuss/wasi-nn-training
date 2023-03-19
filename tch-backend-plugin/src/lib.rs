@@ -17,7 +17,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
-    assert_eq!(input.len(), 4);
+    assert_eq!(input.len(), 5);
 
     // get the linear memory
     let memory = caller.memory(0).expect("failed to get memory at idex 0");
@@ -226,6 +226,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         labels,
     };
 
+    // device
     let device_id = if input[3].ty() == ValType::I32 {
         input[3].to_i32()
     } else {
@@ -237,12 +238,21 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     };
     println!("[Plugin] Device: {:?}", device);
 
-    train_model(ds, device).expect("failed to train model");
+    // learning rate
+    let lr = if input[4].ty() == ValType::F64 {
+        input[4].to_f64()
+    } else {
+        return Err(HostFuncError::User(5));
+    };
+    println!("[Plugin] Learning rate: {lr}");
+
+    // start training
+    train_model(ds, device, lr).expect("failed to train model");
 
     Ok(vec![])
 }
 
-fn train_model(dataset: Dataset, device: Device) -> Result<()> {
+fn train_model(dataset: Dataset, device: Device, lr: f64) -> Result<()> {
     let module_path = "/root/workspace/wasi-nn-training/model.pt";
 
     let vs = VarStore::new(device);
@@ -258,7 +268,7 @@ fn train_model(dataset: Dataset, device: Device) -> Result<()> {
     println!("[Plugin] Initial accuracy: {:5.2}%", 100. * initial_acc);
 
     println!("[Plugin] Start training ... ");
-    let mut opt = Adam::default().build(&vs, 1e-4).expect("[train] optimizer");
+    let mut opt = Adam::default().build(&vs, lr).expect("[train] optimizer");
     for epoch in 1..10 {
         for (images, labels) in dataset
             .train_iter(128)
@@ -540,7 +550,7 @@ unsafe extern "C" fn create_test_module(
         .expect("failed to create host function: add")
         .with_func::<(i32, i32, i32, i32, i32), ()>("set_input_tensor", set_input_tensor)
         .expect("failed to create host function: set_input_tensor")
-        .with_func::<(i32, i32, i64, i32), ()>("train", train)
+        .with_func::<(i32, i32, i64, i32, f64), ()>("train", train)
         .expect("failed to create set_dataset host function")
         .build(module_name)
         .expect("failed to create import object");
