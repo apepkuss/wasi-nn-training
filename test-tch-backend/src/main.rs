@@ -16,6 +16,7 @@ mod plugin {
             labels: i64,
             device: i32,
             lr: f64,
+            epochs: i32,
         );
     }
 }
@@ -118,6 +119,7 @@ fn main() {
             10,
             0, // device: CPU
             1e-4,
+            10,
         )
     }
 }

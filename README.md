@@ -97,17 +97,18 @@ wasmedge --dir .:. target/wasm32-wasi/release/test-tch-backend.wasm
 [Plugin] Labels: 10
 [Plugin] Device: Cpu
 [Plugin] Learning rate: 0.0001
-[Plugin] Initial accuracy:  9.47%
+[Plugin] Epochs: 10
+[Plugin] Initial accuracy:  9.71%
 [Plugin] Start training ... 
-        epoch:    1 test acc: 87.21%
-        epoch:    2 test acc: 89.68%
-        epoch:    3 test acc: 90.01%
-        epoch:    4 test acc: 90.42%
-        epoch:    5 test acc: 90.46%
-        epoch:    6 test acc: 90.66%
-        epoch:    7 test acc: 91.17%
-        epoch:    8 test acc: 90.86%
-        epoch:    9 test acc: 91.37%
+        epoch:    1 test acc: 87.44%
+        epoch:    2 test acc: 89.97%
+        epoch:    3 test acc: 89.92%
+        epoch:    4 test acc: 90.25%
+        epoch:    5 test acc: 90.64%
+        epoch:    6 test acc: 90.82%
+        epoch:    7 test acc: 91.24%
+        epoch:    8 test acc: 91.05%
+        epoch:    9 test acc: 91.33%
 [Plugin] Finished
 [Plugin] The pre-trained model is dumped to `trained_model.pt`
 ```
