@@ -20,7 +20,7 @@ The goal of this project is to explore the feasibility of providing AI training 
 
     Reference [Libtorch Manual Install](https://github.com/LaurentMazare/tch-rs#libtorch-manual-install)
 
-## Draft a resnet model
+## Draft Resnet model
 
 The following Python script defines a Resnet model. The last line of the code dumps the model for training.
 
