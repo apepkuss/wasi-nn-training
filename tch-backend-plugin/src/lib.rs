@@ -27,26 +27,26 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     } else {
         return Err(HostFuncError::User(1));
     };
-    println!("[plugin] offset_tensors: {offset_tensors}");
+    // println!("[plugin] offset_tensors: {offset_tensors}");
 
     let len_tensors = if input[1].ty() == ValType::I32 {
         input[1].to_i32()
     } else {
         return Err(HostFuncError::User(2));
     };
-    println!("[plugin] len_tensors: {len_tensors}");
+    // println!("[plugin] len_tensors: {len_tensors}");
 
     let ptr_tensors = memory
         .data_pointer(offset_tensors as u32, protocol::SIZE_OF_TENSOR_ARRAY)
         .expect("failed to get data from linear memory");
-    println!("[plugin] ptr_tensor: {:p}", ptr_tensors);
+    // println!("[plugin] ptr_tensor: {:p}", ptr_tensors);
     let slice = unsafe {
         std::slice::from_raw_parts(
             ptr_tensors,
             protocol::SIZE_OF_TENSOR_ELEMENT as usize * len_tensors as usize,
         )
     };
-    println!("[Plugin] len of slice: {}", slice.len());
+    // println!("[Plugin] len of slice: {}", slice.len());
 
     // * extract train_images
 
