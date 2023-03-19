@@ -12,6 +12,285 @@ use tch::vision::dataset::Dataset;
 use tch::TrainableCModule;
 use tch::{Device, Tensor};
 
+#[host_function]
+fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+    println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
+
+    // check the number of inputs
+    assert_eq!(input.len(), 4);
+
+    // get the linear memory
+    let memory = caller.memory(0).expect("failed to get memory at idex 0");
+
+    let offset_tensors = if input[0].ty() == ValType::I32 {
+        input[0].to_i32()
+    } else {
+        return Err(HostFuncError::User(1));
+    };
+    println!("[plugin] offset_tensors: {offset_tensors}");
+
+    let len_tensors = if input[1].ty() == ValType::I32 {
+        input[1].to_i32()
+    } else {
+        return Err(HostFuncError::User(2));
+    };
+    println!("[plugin] len_tensors: {len_tensors}");
+
+    let ptr_tensors = memory
+        .data_pointer(offset_tensors as u32, protocol::SIZE_OF_TENSOR_ARRAY)
+        .expect("failed to get data from linear memory");
+    println!("[plugin] ptr_tensor: {:p}", ptr_tensors);
+    let slice = unsafe {
+        std::slice::from_raw_parts(
+            ptr_tensors,
+            protocol::SIZE_OF_TENSOR_ELEMENT as usize * len_tensors as usize,
+        )
+    };
+    println!("[Plugin] len of slice: {}", slice.len());
+
+    // * extract train_images
+
+    print!("[Plugin] Preparing train images ... ");
+    io::stdout().flush().unwrap();
+    let train_images: Tensor = {
+        // * extract tenor1
+        let offset1 = i32::from_le_bytes(slice[0..4].try_into().unwrap());
+        let slice1 = memory
+            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
+            .unwrap();
+
+        // parse tensor1's data
+        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
+        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
+        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+
+        // parse tensor1's dimensions
+        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
+        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
+        let dims1 = memory
+            .read(offset_dims1 as u32, len_dims1 as u32)
+            .expect("failed to read memory");
+        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
+            .into_iter()
+            .map(i64::from)
+            .collect();
+
+        // parse tensor1's type
+        let dtype1 = slice1[16];
+
+        // convert to tch::Tensor for train_images
+        to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
+    };
+    println!(
+        "[Done] (shape: {:?}, dtype: {:?})",
+        train_images.size(),
+        train_images.kind()
+    );
+
+    // * extract train_labels
+
+    print!("[Plugin] Preparing train labels ... ");
+    io::stdout().flush().unwrap();
+    let train_labels: Tensor = {
+        // * extract tenor2
+        let offset1 = i32::from_le_bytes(slice[4..8].try_into().unwrap());
+        let slice1 = memory
+            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
+            .unwrap();
+
+        // parse tensor2's data
+        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
+        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
+        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+
+        // parse tensor2's dimensions
+        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
+        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
+        let dims1 = memory
+            .read(offset_dims1 as u32, len_dims1 as u32)
+            .expect("failed to read memory");
+        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
+            .into_iter()
+            .map(i64::from)
+            .collect();
+
+        // parse tensor2's type
+        let dtype1 = slice1[16];
+
+        // convert to tch::Tensor for train_labels
+        to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
+    };
+    println!(
+        "[Done] (shape: {:?}, dtype: {:?})",
+        train_labels.size(),
+        train_labels.kind()
+    );
+
+    // * extract test_images
+
+    print!("[Plugin] Preparing test images ... ");
+    io::stdout().flush().unwrap();
+    let test_images: Tensor = {
+        // * extract tenor3
+        let offset1 = i32::from_le_bytes(slice[8..12].try_into().unwrap());
+        let slice1 = memory
+            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
+            .unwrap();
+
+        // parse tensor3's data
+        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
+        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
+        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+
+        // parse tensor3's dimensions
+        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
+        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
+        let dims1 = memory
+            .read(offset_dims1 as u32, len_dims1 as u32)
+            .expect("failed to read memory");
+        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
+            .into_iter()
+            .map(i64::from)
+            .collect();
+
+        // parse tensor3's type
+        let dtype1 = slice1[16];
+
+        // convert to tch::Tensor for test_images
+        to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
+    };
+    println!(
+        "[Done] (shape: {:?}, dtype: {:?})",
+        test_images.size(),
+        test_images.kind()
+    );
+
+    // extract test_labels
+
+    print!("[Plugin] Preparing test labels ... ");
+    io::stdout().flush().unwrap();
+    let test_labels: Tensor = {
+        // * extract tenor4
+        let offset1 = i32::from_le_bytes(slice[12..16].try_into().unwrap());
+        let slice1 = memory
+            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
+            .unwrap();
+
+        // parse tensor4's data
+        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
+        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
+        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+
+        // parse tensor4's dimensions
+        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
+        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
+        // let dims1 = memory
+        //     .read(offset_dims1 as u32, len_dims1 as u32)
+        //     .expect("failed to read memory");
+        // let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
+        //     .into_iter()
+        //     .map(i64::from)
+        //     .collect();
+        let dims1 = memory
+            .read(offset_dims1 as u32, len_dims1 as u32)
+            .expect("plugin: test_labels: faied to extract tensor dimensions");
+        let dims1: Vec<i64> = protocol::bytes_to_i32_vec(dims1.as_slice())
+            .iter()
+            .map(|&c| c as i64)
+            .collect();
+
+        // parse tensor4's type
+        let dtype1 = slice1[16];
+
+        // convert to tch::Tensor for test_labels
+        to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
+    };
+    println!(
+        "[Done] (shape: {:?}, dtype: {:?})",
+        test_labels.size(),
+        test_labels.kind()
+    );
+
+    let labels = if input[2].ty() == ValType::I64 {
+        input[2].to_i64()
+    } else {
+        return Err(HostFuncError::User(3));
+    };
+    println!("[Plugin] Labels: {labels}");
+
+    let ds = Dataset {
+        train_images,
+        train_labels,
+        test_images,
+        test_labels,
+        labels,
+    };
+
+    let device_id = if input[3].ty() == ValType::I32 {
+        input[3].to_i32()
+    } else {
+        return Err(HostFuncError::User(4));
+    };
+    let device = match device_id {
+        0 => Device::Cpu,
+        _ => panic!("unsupported device id: {device_id}"),
+    };
+    println!("[Plugin] Device: {:?}", device);
+
+    train_model(ds, device).expect("failed to train model");
+
+    Ok(vec![])
+}
+
+fn train_model(dataset: Dataset, device: Device) -> Result<()> {
+    let module_path = "/root/workspace/wasi-nn-training/model.pt";
+
+    let vs = VarStore::new(device);
+    let mut trainable = TrainableCModule::load(module_path, vs.root())?;
+    trainable.set_train();
+
+    let initial_acc = trainable.batch_accuracy_for_logits(
+        &dataset.test_images,
+        &dataset.test_labels,
+        vs.device(),
+        1024,
+    );
+    println!("[Plugin] Initial accuracy: {:5.2}%", 100. * initial_acc);
+
+    println!("[Plugin] Start training ... ");
+    let mut opt = Adam::default().build(&vs, 1e-4).expect("[train] optimizer");
+    for epoch in 1..10 {
+        for (images, labels) in dataset
+            .train_iter(128)
+            .shuffle()
+            .to_device(vs.device())
+            .take(50)
+        {
+            let loss = trainable
+                .forward_t(&images, true)
+                .cross_entropy_for_logits(&labels);
+            opt.backward_step(&loss);
+        }
+        let test_accuracy = trainable.batch_accuracy_for_logits(
+            &dataset.test_images,
+            &dataset.test_labels,
+            vs.device(),
+            1024,
+        );
+        println!(
+            "\tepoch: {:4} test acc: {:5.2}%",
+            epoch,
+            100. * test_accuracy,
+        );
+    }
+    println!("[Plugin] Finished");
+
+    trainable.save("trained_model.pt")?;
+    println!("[Plugin] The pre-trained model is dumped to `trained_model.pt`");
+
+    Ok(())
+}
+
 // A native function to be wrapped as a host function
 #[host_function]
 fn real_add(_: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
@@ -250,236 +529,6 @@ fn set_input_tensor(
     Ok(vec![])
 }
 
-#[host_function]
-fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
-    println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
-
-    // check the number of inputs
-    assert_eq!(input.len(), 4);
-
-    // get the linear memory
-    let memory = caller.memory(0).expect("failed to get memory at idex 0");
-
-    let offset_tensors = if input[0].ty() == ValType::I32 {
-        input[0].to_i32()
-    } else {
-        return Err(HostFuncError::User(1));
-    };
-    println!("[plugin] offset_tensors: {offset_tensors}");
-
-    let len_tensors = if input[1].ty() == ValType::I32 {
-        input[1].to_i32()
-    } else {
-        return Err(HostFuncError::User(2));
-    };
-    println!("[plugin] len_tensors: {len_tensors}");
-
-    let ptr_tensors = memory
-        .data_pointer(offset_tensors as u32, protocol::SIZE_OF_TENSOR_ARRAY)
-        .expect("failed to get data from linear memory");
-    println!("[plugin] ptr_tensor: {:p}", ptr_tensors);
-    let slice = unsafe {
-        std::slice::from_raw_parts(
-            ptr_tensors,
-            protocol::SIZE_OF_TENSOR_ELEMENT as usize * len_tensors as usize,
-        )
-    };
-    println!("[Plugin] len of slice: {}", slice.len());
-
-    // * extract train_images
-
-    print!("[Plugin] Preparing train images ... ");
-    io::stdout().flush().unwrap();
-    let train_images: Tensor = {
-        // * extract tenor1
-        let offset1 = i32::from_le_bytes(slice[0..4].try_into().unwrap());
-        let slice1 = memory
-            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
-            .unwrap();
-
-        // parse tensor1's data
-        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
-        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
-        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
-
-        // parse tensor1's dimensions
-        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
-        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
-        let dims1 = memory
-            .read(offset_dims1 as u32, len_dims1 as u32)
-            .expect("failed to read memory");
-        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
-            .into_iter()
-            .map(i64::from)
-            .collect();
-
-        // parse tensor1's type
-        let dtype1 = slice1[16];
-
-        // convert to tch::Tensor for train_images
-        to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
-    };
-    println!(
-        "[Done] (shape: {:?}, dtype: {:?})",
-        train_images.size(),
-        train_images.kind()
-    );
-
-    // * extract train_labels
-
-    print!("[Plugin] Preparing train labels ... ");
-    io::stdout().flush().unwrap();
-    let train_labels: Tensor = {
-        // * extract tenor2
-        let offset1 = i32::from_le_bytes(slice[4..8].try_into().unwrap());
-        let slice1 = memory
-            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
-            .unwrap();
-
-        // parse tensor2's data
-        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
-        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
-        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
-
-        // parse tensor2's dimensions
-        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
-        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
-        let dims1 = memory
-            .read(offset_dims1 as u32, len_dims1 as u32)
-            .expect("failed to read memory");
-        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
-            .into_iter()
-            .map(i64::from)
-            .collect();
-
-        // parse tensor2's type
-        let dtype1 = slice1[16];
-
-        // convert to tch::Tensor for train_labels
-        to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
-    };
-    println!(
-        "[Done] (shape: {:?}, dtype: {:?})",
-        train_labels.size(),
-        train_labels.kind()
-    );
-
-    // * extract test_images
-
-    print!("[Plugin] Preparing test images ... ");
-    io::stdout().flush().unwrap();
-    let test_images: Tensor = {
-        // * extract tenor3
-        let offset1 = i32::from_le_bytes(slice[8..12].try_into().unwrap());
-        let slice1 = memory
-            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
-            .unwrap();
-
-        // parse tensor3's data
-        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
-        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
-        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
-
-        // parse tensor3's dimensions
-        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
-        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
-        let dims1 = memory
-            .read(offset_dims1 as u32, len_dims1 as u32)
-            .expect("failed to read memory");
-        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
-            .into_iter()
-            .map(i64::from)
-            .collect();
-
-        // parse tensor3's type
-        let dtype1 = slice1[16];
-
-        // convert to tch::Tensor for test_images
-        to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
-    };
-    println!(
-        "[Done] (shape: {:?}, dtype: {:?})",
-        test_images.size(),
-        test_images.kind()
-    );
-
-    // extract test_labels
-
-    print!("[Plugin] Preparing test labels ... ");
-    io::stdout().flush().unwrap();
-    let test_labels: Tensor = {
-        // * extract tenor4
-        let offset1 = i32::from_le_bytes(slice[12..16].try_into().unwrap());
-        let slice1 = memory
-            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
-            .unwrap();
-
-        // parse tensor4's data
-        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
-        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
-        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
-
-        // parse tensor4's dimensions
-        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
-        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
-        // let dims1 = memory
-        //     .read(offset_dims1 as u32, len_dims1 as u32)
-        //     .expect("failed to read memory");
-        // let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
-        //     .into_iter()
-        //     .map(i64::from)
-        //     .collect();
-        let dims1 = memory
-            .read(offset_dims1 as u32, len_dims1 as u32)
-            .expect("plugin: test_labels: faied to extract tensor dimensions");
-        let dims1: Vec<i64> = protocol::bytes_to_i32_vec(dims1.as_slice())
-            .iter()
-            .map(|&c| c as i64)
-            .collect();
-
-        // parse tensor4's type
-        let dtype1 = slice1[16];
-
-        // convert to tch::Tensor for test_labels
-        to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
-    };
-    println!(
-        "[Done] (shape: {:?}, dtype: {:?})",
-        test_labels.size(),
-        test_labels.kind()
-    );
-
-    let labels = if input[2].ty() == ValType::I64 {
-        input[2].to_i64()
-    } else {
-        return Err(HostFuncError::User(3));
-    };
-    println!("[Plugin] Labels: {labels}");
-
-    let ds = Dataset {
-        train_images,
-        train_labels,
-        test_images,
-        test_labels,
-        labels,
-    };
-
-    let device_id = if input[3].ty() == ValType::I32 {
-        input[3].to_i32()
-    } else {
-        return Err(HostFuncError::User(4));
-    };
-    let device = match device_id {
-        0 => Device::Cpu,
-        _ => panic!("unsupported device id: {device_id}"),
-    };
-    println!("[Plugin] Device: {:?}", device);
-
-    train_model(ds, device).expect("failed to train model");
-
-    Ok(vec![])
-}
-
 /// Defines Plugin module instance
 unsafe extern "C" fn create_test_module(
     _arg1: *const ffi::WasmEdge_ModuleDescriptor,
@@ -541,55 +590,6 @@ pub fn to_tch_tensor(dtype: u8, dims: &[i64], data: &[u8]) -> tch::Tensor {
         }
         _ => panic!("plugin: train_images: unsupported dtype: {dtype}"),
     }
-}
-
-pub fn train_model(dataset: Dataset, device: Device) -> Result<()> {
-    let module_path = "/root/workspace/wasi-nn-training/model.pt";
-
-    let vs = VarStore::new(device);
-    let mut trainable = TrainableCModule::load(module_path, vs.root())?;
-    trainable.set_train();
-
-    let initial_acc = trainable.batch_accuracy_for_logits(
-        &dataset.test_images,
-        &dataset.test_labels,
-        vs.device(),
-        1024,
-    );
-    println!("[Plugin] Initial accuracy: {:5.2}%", 100. * initial_acc);
-
-    println!("[Plugin] Start training ... ");
-    let mut opt = Adam::default().build(&vs, 1e-4).expect("[train] optimizer");
-    for epoch in 1..10 {
-        for (images, labels) in dataset
-            .train_iter(128)
-            .shuffle()
-            .to_device(vs.device())
-            .take(50)
-        {
-            let loss = trainable
-                .forward_t(&images, true)
-                .cross_entropy_for_logits(&labels);
-            opt.backward_step(&loss);
-        }
-        let test_accuracy = trainable.batch_accuracy_for_logits(
-            &dataset.test_images,
-            &dataset.test_labels,
-            vs.device(),
-            1024,
-        );
-        println!(
-            "\tepoch: {:4} test acc: {:5.2}%",
-            epoch,
-            100. * test_accuracy,
-        );
-    }
-    println!("[Plugin] Finished");
-
-    trainable.save("trained_model.pt")?;
-    println!("[Plugin] The pre-trained model is dumped to `trained_model.pt`");
-
-    Ok(())
 }
 
 // * interface protocol
